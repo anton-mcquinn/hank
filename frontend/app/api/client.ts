@@ -18,7 +18,7 @@ export const getAuthHeader = async (): Promise<Record<string, string>> => {
 const API_URL = {
   // Use localhost for iOS simulator, 10.0.2.2 for Android emulator
   development: Platform.OS === 'ios' 
-    ? 'http://192.168.0.43:8000/api/v1' 
+    ? 'http://192.168.0.89:8000/api/v1'
     : 'http://10.0.2.2:8000/api/v1',
   production: 'https://your-api-domain.com/api/v1'
 };
@@ -109,7 +109,9 @@ export const apiRequest = async <T>(
 
 // Helper methods for common HTTP verbs
 export const api = {
-  get: <T>(endpoint: string, customHeaders?: Record<string, string>) => 
+  getBaseUrl,
+
+  get: <T>(endpoint: string, customHeaders?: Record<string, string>) =>
     apiRequest<T>(endpoint, 'GET', undefined, customHeaders),
     
   post: <T>(endpoint: string, data?: any, customHeaders?: Record<string, string>) => 

@@ -1,4 +1,7 @@
 backend/.env
 backend/uploads/
 backend/venv/
+backend/freshvenv/
 backend/invoices/
+**/__pycache__/
+*.pyc
