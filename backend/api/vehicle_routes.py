@@ -4,12 +4,13 @@ from typing import List
 import uuid
 from datetime import datetime
 
+from api.auth_dependencies import get_current_user
 from database.db import get_db
 
 from api.models import Vehicle, VehicleCreate, VehicleUpdate
 from database.repos import VehicleRepository, CustomerRepository
 
-router = APIRouter()
+router = APIRouter(dependencies=[Depends(get_current_user)])
 
 
 @router.post("/vehicles", response_model=Vehicle)

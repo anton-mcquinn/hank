@@ -1,3 +1,4 @@
+import logging
 from fastapi import APIRouter, Depends, HTTPException, BackgroundTasks, Response
 from fastapi.responses import FileResponse
 from sqlalchemy.orm import Session
@@ -6,6 +7,7 @@ from pydantic import BaseModel
 import os
 from pathlib import Path
 
+from api.auth_dependencies import get_current_user
 from database.db import get_db
 from database.repos import WorkOrderRepository, CustomerRepository, VehicleRepository
 from services.invoice_generator_html import (
@@ -14,7 +16,9 @@ from services.invoice_generator_html import (
 )
 # from services.email_service import send_email_with_attachment
 
-router = APIRouter()
+logger = logging.getLogger(__name__)
+
+router = APIRouter(dependencies=[Depends(get_current_user)])
 
 
 class EmailRequest(BaseModel):
@@ -74,8 +78,7 @@ async def generate_invoice(
     # Generate PDF if requested
     pdf_path = None
     if request.generate_pdf:
-        print("Generating PDF with ReportLab...")
-        # Generate PDF using ReportLab
+        logger.info("Generating PDF for order %s", order_id)
         pdf_path = await generate_pdf_with_reportlab(template_data)
 
         if pdf_path:
@@ -84,24 +87,6 @@ async def generate_invoice(
             result["status"] = "partial"
             result["message"] = "Generated HTML but failed to create PDF"
 
-    # # Send email if requested
-    # if request.send_email and request.email:
-    #     if background_tasks:
-    #         # Send email in background
-    #         attachment_path = pdf_path if request.generate_pdf and pdf_path else html_path
-    #         background_tasks.add_task(
-    #             send_email_with_attachment,
-    #             request.email,
-    #             f"Invoice #{order_id[:8]} from Your Auto Shop",
-    #             html_content,  # HTML body
-    #             attachment_path  # Attachment
-    #         )
-    #         result["email_status"] = "queued"
-    #     else:
-    #         # Code for synchronous email sending
-    #         pass
-
-    print(f"PDF generated: {result}")
     return result
 
 
@@ -154,8 +139,7 @@ async def generate_estimate(
     # Generate PDF if requested
     pdf_path = None
     if request.generate_pdf:
-        print("Generating PDF with ReportLab...")
-        # Generate PDF using ReportLab
+        logger.info("Generating PDF estimate for order %s", order_id)
         pdf_path = await generate_pdf_with_reportlab(template_data)
 
         if pdf_path:
@@ -169,13 +153,16 @@ async def generate_estimate(
 
 @router.get("/invoices/{filename}")
 async def get_invoice_pdf(filename: str):
-    INVOICE_DIR = os.getenv("INVOICE_DIR", "invoices")
+    invoice_dir = Path(os.getenv("INVOICE_DIR", "invoices")).resolve()
+    file_path = (invoice_dir / filename).resolve()
 
-    file_path = Path(INVOICE_DIR) / filename
+    # Prevent path traversal — ensure resolved path stays within invoice directory
+    if not file_path.is_relative_to(invoice_dir):
+        raise HTTPException(status_code=400, detail="Invalid filename")
 
     if not file_path.exists():
         raise HTTPException(status_code=404, detail="File not found")
 
     return FileResponse(
-        path=str(file_path.absolute()), media_type="application/pdf", filename=filename
+        path=str(file_path), media_type="application/pdf", filename=filename
     )

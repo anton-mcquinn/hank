@@ -1,3 +1,4 @@
+import logging
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 from typing import List
@@ -9,6 +10,8 @@ from api.models import Customer, CustomerCreate, CustomerUpdate, CustomerBase
 from api.auth_dependencies import get_current_user
 from database.db import get_db
 from database.repos import CustomerRepository, VehicleRepository
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter(dependencies=[Depends(get_current_user)])
 
@@ -63,9 +66,10 @@ async def extract_customer_info(
     except HTTPException:
         raise
     except Exception as e:
+        logger.error("Error extracting customer info from image: %s", e)
         raise HTTPException(
             status_code=500,
-            detail=f"Error extracting customer info from image: {str(e)}",
+            detail="Error extracting customer information from image",
         )
 
 
@@ -151,11 +155,13 @@ async def create_customer_image(
     except HTTPException:
         raise
     except Exception as e:
+        logger.error("Error creating customer from image: %s", e)
         raise HTTPException(
-            status_code=500, detail=f"Error creating customer from image: {str(e)}"
-        ) @ router.get("/customers/{customer_id}", response_model=Customer)
+            status_code=500, detail="Error creating customer from image"
+        )
 
 
+@router.get("/customers/{customer_id}", response_model=Customer)
 async def get_customer(customer_id: str, db: Session = Depends(get_db)):
     """Get a customer by ID"""
     customer = CustomerRepository.get_by_id(db, customer_id)
@@ -186,21 +192,7 @@ async def update_customer(
 @router.delete("/customers/{customer_id}")
 async def delete_customer(customer_id: str, db: Session = Depends(get_db)):
     """Delete a customer"""
-    # Check if customer has work orders before deleting
     result = CustomerRepository.delete(db, customer_id)
     if not result:
         raise HTTPException(status_code=404, detail="Customer not found")
     return {"message": "Customer deleted"}
-
-
-@router.get("/customers/{customer_id}", response_model=Customer)
-async def get_customer(
-    customer_id: str,
-    current_user=Depends(get_current_user),
-    db: Session = Depends(get_db),
-):
-    """Get a customer by ID"""
-    customer = CustomerRepository.get_by_id(db, customer_id)
-    if not customer:
-        raise HTTPException(status_code=404, detail="Customer not found")
-    return customer

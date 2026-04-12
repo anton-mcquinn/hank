@@ -1,9 +1,12 @@
 import httpx
 import json
+import logging
 import os
-from dotenv import load_dotenv, dotenv_values
+from dotenv import load_dotenv
 
 load_dotenv()
+
+logger = logging.getLogger(__name__)
 
 OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
 
@@ -31,12 +34,12 @@ async def generate_work_summary(transcript, vehicle_info):
             5. If there are recommendations made to the customer to take later, outline these because this is where the customer will read them.
             6. Shoot for 400 words
             7. Don't repeat vehicle information in the summary like VIN or YMM.
-            
+
             {vehicle_context}
-            
+
             Voice memo transcript:
             {transcript}
-            
+
             Format the response as JSON with these fields:
             {{
                 "work_summary": "Brief description of work done",
@@ -74,7 +77,7 @@ async def generate_work_summary(transcript, vehicle_info):
                 try:
                     return json.loads(result)
                 except json.JSONDecodeError:
-                    print(f"Failed to parse JSON from response: {result}")
+                    logger.error("Failed to parse JSON from OpenAI response")
                     return {
                         "work_summary": "Error parsing work summary",
                         "line_items": [],
@@ -83,7 +86,7 @@ async def generate_work_summary(transcript, vehicle_info):
                         "total": 0,
                     }
             else:
-                print(f"OpenAI API error: {response.text}")
+                logger.error("OpenAI API error: %s", response.status_code)
                 return {
                     "work_summary": "Error generating work summary",
                     "line_items": [],
@@ -92,9 +95,9 @@ async def generate_work_summary(transcript, vehicle_info):
                     "total": 0,
                 }
     except Exception as e:
-        print(f"Error generating work summary: {e}")
+        logger.error("Error generating work summary: %s", e)
         return {
-            "work_summary": f"Error: {str(e)}",
+            "work_summary": "Error generating work summary",
             "line_items": [],
             "total_parts": 0,
             "total_labor": 0,

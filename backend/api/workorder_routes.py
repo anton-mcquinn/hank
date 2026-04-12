@@ -1,3 +1,4 @@
+import logging
 from fastapi import (
     APIRouter,
     BackgroundTasks,
@@ -26,6 +27,8 @@ from services.generate import generate_work_summary
 from services.vehicle_info import get_year_make_model
 from database.repos import WorkOrderRepository, CustomerRepository, VehicleRepository
 from database.db import get_db
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter()
 
@@ -165,8 +168,11 @@ async def create_work_order(
             "order_id": order_id,
             "message": "Work order created. Files are being processed.",
         }
+    except HTTPException:
+        raise
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        logger.error("Error creating work order: %s", e)
+        raise HTTPException(status_code=500, detail="Internal server error")
 
 
 async def process_uploads(
@@ -194,7 +200,7 @@ async def process_uploads(
         # Get work order
         work_order = WorkOrderRepository.get_by_id(db, order_id)
         if not work_order:
-            print(f"Work order {order_id} not found")
+            logger.error("Work order %s not found", order_id)
             return
 
         WorkOrderRepository.update(
@@ -218,7 +224,7 @@ async def process_uploads(
                     "images",
                     f"{order_id}_vin{os.path.splitext(vin_filename)[1]}",
                 )
-                print("Getting vin image")
+                logger.info("Processing VIN image for order %s", order_id)
                 async with aiofiles.open(vin_path, "wb") as f:
                     await f.write(vin_content)
 
@@ -229,7 +235,7 @@ async def process_uploads(
                     vehicle_info["vin"] = vin
                     vehicle_info.update(await get_year_make_model(vin))
                     update_data["processing_notes"].append("VIN decoded successfully")
-                    print("Vehicle Info with vin:", vehicle_info)
+                    logger.info("Vehicle info decoded for order %s", order_id)
                 else:
                     update_data["processing_notes"].append(
                         "VIN extraction failed - manual entry required"
@@ -237,7 +243,7 @@ async def process_uploads(
 
             except Exception as e:
                 update_data["processing_notes"].append(f"VIN error: {str(e)[:100]}")
-                print(f"VIN processing error: {e}")
+                logger.error("VIN processing error for order %s: %s", order_id, e)
 
         # Process odometer image
         odometer = None
@@ -249,7 +255,7 @@ async def process_uploads(
                     "images",
                     f"{order_id}_odo{os.path.splitext(odometer_filename)[1]}",
                 )
-                print("Getting odometer image")
+                logger.info("Processing odometer image for order %s", order_id)
                 async with aiofiles.open(odo_path, "wb") as f:
                     await f.write(odometer_content)
                 odometer = await read_odometer_image(odo_path)
@@ -257,15 +263,14 @@ async def process_uploads(
 
                 if odometer:
                     vehicle_info["mileage"] = odometer
-                    print("Vehicle Info with odometer:", vehicle_info)
                 else:
                     update_data["processing_notes"].append(
                         "Odometer extraction failed - manual entry required"
                     )
-                    print("Odometer extraction failed, manual entry required")
+                    logger.warning("Odometer extraction failed for order %s", order_id)
 
             except Exception as e:
-                print(f"Odometer processing error: {e}")
+                logger.error("Odometer processing error for order %s: %s", order_id, e)
                 update_data["processing_notes"].append(
                     f"Odometer error: {str(e)[:100]}"
                 )
@@ -279,7 +284,7 @@ async def process_uploads(
                     "images",
                     f"{order_id}_plate{os.path.splitext(plate_filename)[1]}",
                 )
-                print("Getting plate image")
+                logger.info("Processing plate image for order %s", order_id)
                 async with aiofiles.open(plate_path, "wb") as f:
                     await f.write(plate_content)
                 plate = await read_plate_from_image(plate_path)
@@ -287,17 +292,16 @@ async def process_uploads(
                 if plate:
                     vehicle_info["plate"] = plate
                     update_data["processing_notes"].append("Plate decoded successfully")
-                    print("Vehicle Info with plate:", vehicle_info)
 
             except Exception as e:
-                print(f"Plate processing error: {e}")
+                logger.error("Plate processing error for order %s: %s", order_id, e)
                 update_data["processing_notes"].append(f"Plate error: {str(e)[:100]}")
                 # If plate extraction fails, we can still proceed without it
 
         # Process customer info if we have it
         if not customer_id and (customer_name or customer_phone or customer_email):
             # Try to find existing customer by phone or email
-            print("Looking for existing customer")
+            logger.info("Looking for existing customer for order %s", order_id)
             customer = None
             if customer_phone:
                 customer = CustomerRepository.get_by_phone(db, customer_phone)
@@ -306,7 +310,7 @@ async def process_uploads(
 
             if customer:
                 # Use existing customer
-                print(f"Found existing customer: {customer}")
+                logger.info("Found existing customer for order %s", order_id)
                 if customer.id is None:
                     id = str(uuid.uuid4())
                     customer = CustomerRepository.update(db, id, {"id": id})
@@ -328,7 +332,7 @@ async def process_uploads(
 
                 customer = CustomerRepository.create(db, customer_data)
                 customer_id = customer.id
-                print(f"Created new customer: {customer}")
+                logger.info("Created new customer for order %s", order_id)
 
         if vehicle_info:
             update_data["vehicle_info"] = vehicle_info
@@ -341,7 +345,7 @@ async def process_uploads(
                     existing_vehicle = VehicleRepository.get_by_vin(db, vin)
 
                     if existing_vehicle:
-                        print(f"Found existing vehicle: {existing_vehicle}")
+                        logger.info("Found existing vehicle for order %s", order_id)
                         update_data["processing_notes"].append("Found existing vehicle")
                         vehicle_id = existing_vehicle.id
 
@@ -370,7 +374,7 @@ async def process_uploads(
                         update_data["processing_notes"].append(
                             "Created new vehicle with partial info"
                         )
-                        print(f"Created new vehicle: {new_vehicle}")
+                        logger.info("Created new vehicle for order %s", order_id)
                 else:
                     # placeholder vehicle with minimal info
                     if vehicle_info and (
@@ -391,7 +395,7 @@ async def process_uploads(
                         "Created new vehicle with partial info"
                     )
             except Exception as e:
-                print(f"Error creating vehicle: {e}")
+                logger.error("Error creating vehicle for order %s: %s", order_id, e)
                 update_data["processing_notes"].append(
                     f"Vehicle creation error: {str(e)[:100]}"
                 )
@@ -433,7 +437,7 @@ async def process_uploads(
                     )
 
                     # Write the content to disk using aiofiles
-                    print(f"Writing audio file {i}")
+                    logger.info("Writing audio file %d for order %s", i, order_id)
                     async with aiofiles.open(audio_path, "wb") as f:
                         await f.write(audio_content)
 
@@ -443,9 +447,9 @@ async def process_uploads(
                         if transcript:
                             all_transcripts.append(transcript)
                     else:
-                        print(f"Audio file not saved properly: {audio_path}")
+                        logger.warning("Audio file not saved properly: %s", audio_path)
                 except Exception as e:
-                    print(f"Error processing audio file {i}: {e}")
+                    logger.error("Error processing audio file %d for order %s: %s", i, order_id, e)
 
         # Generate work summary if transcripts available
         if all_transcripts:
@@ -453,7 +457,7 @@ async def process_uploads(
             summary_data = await generate_work_summary(full_transcript, vehicle_info)
 
             # Update work order with summary data
-            print(f"Final vehicle info update: {vehicle_info}")
+            logger.info("Work summary generated for order %s", order_id)
             update_data.update(
                 {
                     "vehicle_info": vehicle_info,
@@ -482,10 +486,10 @@ async def process_uploads(
                 update_data["status"] = "needs_review"
 
         WorkOrderRepository.update(db, order_id, update_data)
-        print(f"Work order updated with status: {update_data['status']}")
+        logger.info("Work order %s updated with status: %s", order_id, update_data["status"])
 
     except Exception as e:
-        print(f"Error processing uploads: {e}")
+        logger.error("Error processing uploads for order %s: %s", order_id, e)
         # Update work order status to error
         if "db" in locals():
             try:
@@ -494,11 +498,11 @@ async def process_uploads(
                     order_id,
                     {
                         "status": "needs_review",
-                        "processing_notes": [f"Processing error: {str(e)}"],
+                        "processing_notes": ["Processing error - please review manually"],
                     },
                 )
             except Exception as update_error:
-                print(f"Error updating work order status: {update_error}")
+                logger.error("Error updating work order status: %s", update_error)
     finally:
         if "db" in locals():
             db.close()

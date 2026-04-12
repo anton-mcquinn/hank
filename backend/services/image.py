@@ -1,16 +1,17 @@
 import httpx
 import json
+import logging
 import os
 import base64
 import asyncio
-from dotenv import load_dotenv, dotenv_values
+from dotenv import load_dotenv
 
 load_dotenv()
 
+logger = logging.getLogger(__name__)
+
 OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
 VISION_API_KEY = os.getenv("OPENAI_API_KEY")
-
-print("Api key", OPENAI_API_KEY)
 
 
 async def extract_vin_from_image(file_path):
@@ -60,34 +61,34 @@ async def extract_vin_from_image(file_path):
                     vin_text = response.json()["choices"][0]["message"][
                         "content"
                     ].strip()
-                    print("VIN text:", vin_text)
+                    logger.debug("VIN text: %s", vin_text)
                     # Typical VIN is 17 alphanumeric characters
                     # Extract just the VIN using simple validation
                     import re
 
                     vin_match = re.search(r"[A-HJ-NPR-Z0-9]{17}", vin_text)
-                    print("VIN match:", vin_match)
+                    logger.debug("VIN match: %s", vin_match)
                     if vin_match:
                         return vin_match.group(0)
                     retry_count += 1
                     if retry_count < 3:
-                        print(f"No valid VIN found, retrying... ({retry_count}/3)")
+                        logger.debug("No valid VIN found, retrying... (%d/3)", retry_count)
                         await asyncio.sleep(2)
                     continue
                 else:
-                    print(f"Vision API error: {response.text}")
+                    logger.warning("Vision API error: %s", response.status_code)
                     retry_count += 1
                     if retry_count < 3:
                         await asyncio.sleep(2)
                     continue
         except Exception as e:
             last_error = e
-            print(f"Extraction attempt {retry_count + 1} failed: {e}")
+            logger.error("VIN extraction attempt %d failed: %s", retry_count + 1, e)
             retry_count += 1
             if retry_count < 3:
                 await asyncio.sleep(2)
 
-    print(f"VIN extraction failed after 3 attempts. Last error: {last_error}")
+    logger.error("VIN extraction failed after 3 attempts. Last error: %s", last_error)
     return ""
 
 
@@ -135,21 +136,21 @@ async def read_odometer_image(file_path):
                 mileage_text = response.json()["choices"][0]["message"][
                     "content"
                 ].strip()
-                print("Mileage text:", mileage_text)
+                logger.debug("Mileage text: %s", mileage_text)
                 # Try to extract just the number
                 import re
 
                 mileage_match = re.search(r"[0-9,]+", mileage_text)
-                print("Mileage match:", mileage_match)
+                logger.debug("Mileage match: %s", mileage_match)
                 if mileage_match:
                     # Remove commas and convert to integer
                     return mileage_match.group(0).replace(",", "")
                 return mileage_text
             else:
-                print(f"Vision API error: {response.text}")
+                logger.warning("Vision API error: %s", response.status_code)
                 return ""
     except Exception as e:
-        print(f"Error processing odometer image: {e}")
+        logger.error("Error processing odometer image: %s", e)
         return ""
 
 
@@ -197,13 +198,13 @@ async def read_plate_from_image(file_path):
                 license_text = response.json()["choices"][0]["message"][
                     "content"
                 ].strip()
-                print("License text:", license_text)
+                logger.debug("License text: %s", license_text)
                 return license_text
             else:
-                print(f"Vision API error: {response.text}")
+                logger.warning("Vision API error: %s", response.status_code)
                 return ""
     except Exception as e:
-        print(f"Error processing image: {e}")
+        logger.error("Error processing plate image: %s", e)
         return ""
 
 
@@ -230,7 +231,7 @@ async def extract_customer_info_from_image(file_path):
                 "phone": "Phone number if visible",
                 "address": "Physical address if visible"
             }
-            
+
             If any field is not visible or unclear, leave it as an empty string.
             """
 
@@ -266,11 +267,11 @@ async def extract_customer_info_from_image(file_path):
                 try:
                     return json.loads(result)
                 except json.JSONDecodeError:
-                    print(f"Failed to parse JSON from response: {result}")
+                    logger.error("Failed to parse JSON from Vision API response")
                     return None
             else:
-                print(f"Vision API error: {response.text}")
+                logger.warning("Vision API error: %s", response.status_code)
                 return None
     except Exception as e:
-        print(f"Error extracting customer info from image: {e}")
+        logger.error("Error extracting customer info from image: %s", e)
         return None
