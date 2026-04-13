@@ -17,6 +17,7 @@ import aiofiles
 from sqlalchemy.orm import Session
 
 from api.models import WorkOrder, Customer, Vehicle, WorkOrderUpdate
+from api.auth_dependencies import get_current_user
 from services.audio import transcribe_audio
 from services.image import (
     extract_vin_from_image,
@@ -30,7 +31,17 @@ from database.db import get_db
 
 logger = logging.getLogger(__name__)
 
-router = APIRouter()
+router = APIRouter(dependencies=[Depends(get_current_user)])
+
+# Resolved at import time from environment — not accepted from clients
+__UPLOAD_DIR = os.getenv("_UPLOAD_DIR", "./uploads")
+_OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
+
+# Upload validation constants
+_MAX_AUDIO_BYTES = 50 * 1024 * 1024   # 50 MB
+_MAX_IMAGE_BYTES = 10 * 1024 * 1024   # 10 MB
+_ALLOWED_AUDIO_EXT = {".m4a", ".mp3", ".wav", ".ogg", ".webm", ".mp4"}
+_ALLOWED_IMAGE_EXT = {".jpg", ".jpeg", ".png", ".heic", ".heif", ".gif", ".webp"}
 
 
 class WorkOrderWithRelations(BaseModel):
@@ -56,6 +67,14 @@ class WorkOrderWithRelations(BaseModel):
         json_encoders = {datetime: lambda dt: dt.isoformat()}
 
 
+def _validate_upload(file: UploadFile, content: bytes, max_bytes: int, allowed_ext: set, label: str):
+    ext = os.path.splitext(file.filename or "")[1].lower()
+    if ext not in allowed_ext:
+        raise HTTPException(status_code=400, detail=f"{label}: unsupported file type '{ext}'")
+    if len(content) > max_bytes:
+        raise HTTPException(status_code=413, detail=f"{label}: file exceeds {max_bytes // (1024*1024)} MB limit")
+
+
 @router.post("/work-orders/create", response_model=dict)
 async def create_work_order(
     background_tasks: BackgroundTasks,
@@ -69,8 +88,6 @@ async def create_work_order(
     customer_phone: Optional[str] = Form(None),
     customer_email: Optional[str] = Form(None),
     vehicle_id: Optional[str] = Form(None),
-    UPLOAD_DIR: str = "uploads",
-    OPENAI_API_KEY: str = None,
 ):
     """Create a new work order from audio files and images"""
     try:
@@ -113,35 +130,36 @@ async def create_work_order(
         # Save work order to database
         WorkOrderRepository.create(db, work_order_data)
 
-        # Read file contents before they get closed
+        # Read and validate file contents before they get closed
         audio_contents = []
         audio_filenames = []
         if audio_files:
             for audio_file in audio_files:
-                if audio_file:
+                if audio_file and audio_file.filename:
                     content = await audio_file.read()
+                    _validate_upload(audio_file, content, _MAX_AUDIO_BYTES, _ALLOWED_AUDIO_EXT, "Audio file")
                     audio_contents.append(content)
                     audio_filenames.append(audio_file.filename)
-                else:
-                    audio_contents.append(None)
-                    audio_filenames.append(None)
 
         vin_content = None
         vin_filename = None
-        if vin_image:
+        if vin_image and vin_image.filename:
             vin_content = await vin_image.read()
+            _validate_upload(vin_image, vin_content, _MAX_IMAGE_BYTES, _ALLOWED_IMAGE_EXT, "VIN image")
             vin_filename = vin_image.filename
 
         odometer_content = None
         odometer_filename = None
-        if odometer_image:
+        if odometer_image and odometer_image.filename:
             odometer_content = await odometer_image.read()
+            _validate_upload(odometer_image, odometer_content, _MAX_IMAGE_BYTES, _ALLOWED_IMAGE_EXT, "Odometer image")
             odometer_filename = odometer_image.filename
 
         plate_content = None
         plate_filename = None
-        if plate_image:
+        if plate_image and plate_image.filename:
             plate_content = await plate_image.read()
+            _validate_upload(plate_image, plate_content, _MAX_IMAGE_BYTES, _ALLOWED_IMAGE_EXT, "Plate image")
             plate_filename = plate_image.filename
 
         # Process uploads in background with file contents instead of file objects
@@ -160,8 +178,6 @@ async def create_work_order(
             customer_name,
             customer_phone,
             customer_email,
-            UPLOAD_DIR,
-            OPENAI_API_KEY,
         )
 
         return {
@@ -189,10 +205,9 @@ async def process_uploads(
     customer_name,
     customer_phone,
     customer_email,
-    UPLOAD_DIR,
-    OPENAI_API_KEY,
 ):
     """Process uploaded file contents and update work order"""
+    db = None
     try:
         # Create a new database session for background task
         db = next(get_db())
@@ -217,10 +232,10 @@ async def process_uploads(
         if vin_content:
             try:
                 # Ensure directory exists
-                os.makedirs(os.path.join(UPLOAD_DIR, "images"), exist_ok=True)
+                os.makedirs(os.path.join(_UPLOAD_DIR, "images"), exist_ok=True)
 
                 vin_path = os.path.join(
-                    UPLOAD_DIR,
+                    _UPLOAD_DIR,
                     "images",
                     f"{order_id}_vin{os.path.splitext(vin_filename)[1]}",
                 )
@@ -249,9 +264,9 @@ async def process_uploads(
         odometer = None
         if odometer_content:
             try:
-                os.makedirs(os.path.join(UPLOAD_DIR, "images"), exist_ok=True)
+                os.makedirs(os.path.join(_UPLOAD_DIR, "images"), exist_ok=True)
                 odo_path = os.path.join(
-                    UPLOAD_DIR,
+                    _UPLOAD_DIR,
                     "images",
                     f"{order_id}_odo{os.path.splitext(odometer_filename)[1]}",
                 )
@@ -278,9 +293,9 @@ async def process_uploads(
         plate = None
         if plate_content:
             try:
-                os.makedirs(os.path.join(UPLOAD_DIR, "images"), exist_ok=True)
+                os.makedirs(os.path.join(_UPLOAD_DIR, "images"), exist_ok=True)
                 plate_path = os.path.join(
-                    UPLOAD_DIR,
+                    _UPLOAD_DIR,
                     "images",
                     f"{order_id}_plate{os.path.splitext(plate_filename)[1]}",
                 )
@@ -416,7 +431,7 @@ async def process_uploads(
         all_transcripts = []
         if audio_contents:
             # Create audio directory if it doesn't exist
-            os.makedirs(os.path.join(UPLOAD_DIR, "audio"), exist_ok=True)
+            os.makedirs(os.path.join(_UPLOAD_DIR, "audio"), exist_ok=True)
 
             for i, (audio_content, audio_filename) in enumerate(
                 zip(audio_contents, audio_filenames)
@@ -431,7 +446,7 @@ async def process_uploads(
 
                     # Create the file path with proper extension
                     audio_path = os.path.join(
-                        UPLOAD_DIR,
+                        _UPLOAD_DIR,
                         "audio",
                         f"{order_id}_{i}{ext}",
                     )
@@ -443,7 +458,7 @@ async def process_uploads(
 
                     # Now process the file on disk
                     if os.path.exists(audio_path) and os.path.getsize(audio_path) > 0:
-                        transcript = await transcribe_audio(audio_path, OPENAI_API_KEY)
+                        transcript = await transcribe_audio(audio_path, _OPENAI_API_KEY)
                         if transcript:
                             all_transcripts.append(transcript)
                     else:
@@ -490,8 +505,7 @@ async def process_uploads(
 
     except Exception as e:
         logger.error("Error processing uploads for order %s: %s", order_id, e)
-        # Update work order status to error
-        if "db" in locals():
+        if db is not None:
             try:
                 WorkOrderRepository.update(
                     db,
@@ -504,7 +518,7 @@ async def process_uploads(
             except Exception as update_error:
                 logger.error("Error updating work order status: %s", update_error)
     finally:
-        if "db" in locals():
+        if db is not None:
             db.close()
 
 

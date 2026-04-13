@@ -3,6 +3,7 @@ import customersApi from './customers';
 import vehiclesApi from './vehicles';
 import workordersApi from './workorders';
 import invoicesApi from './invoices';
+import shopApi from './shop';
 import { api, ApiError } from './client';
 
 // Re-export type definitions
@@ -17,7 +18,8 @@ const apiClient = {
   vehicles: vehiclesApi,
   workorders: workordersApi,
   invoices: invoicesApi,
-  
+  shop: shopApi,
+
   // Include the raw api methods for custom requests
   raw: api
 };

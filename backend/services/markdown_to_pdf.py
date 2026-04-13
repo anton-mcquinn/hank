@@ -1,8 +1,11 @@
+import logging
 import os
 import asyncio
 import uuid
 from dotenv import load_dotenv
 import markdown
+
+logger = logging.getLogger(__name__)
 from datetime import datetime
 from io import StringIO
 from html.parser import HTMLParser
@@ -173,10 +176,6 @@ async def convert_markdown_to_pdf(markdown_content, filename_prefix=None):
         parser = HTMLToReportLabParser()
         parser.feed(html_content)
         
-        # For debugging
-        with open(os.path.join(INVOICE_DIR, f"temp_{unique_id}.html"), 'w', encoding='utf-8') as f:
-            f.write(html_content)
-        
         # Build PDF using ReportLab
         loop = asyncio.get_running_loop()
         
@@ -200,5 +199,5 @@ async def convert_markdown_to_pdf(markdown_content, filename_prefix=None):
         return pdf_path
     
     except Exception as e:
-        print(f"Error converting markdown to PDF: {e}")
+        logger.error("Error converting markdown to PDF: %s", e, exc_info=True)
         return None

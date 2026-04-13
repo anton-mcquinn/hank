@@ -1,11 +1,12 @@
 from typing import List, Dict, Any, Optional
 from pydantic import BaseModel, EmailStr
+
 from datetime import datetime
 
 
 class UserBase(BaseModel):
     username: str
-    email: str
+    email: EmailStr
 
 
 class UserCreate(UserBase):
@@ -14,7 +15,7 @@ class UserCreate(UserBase):
 
 class UserUpdate(BaseModel):
     username: Optional[str] = None
-    email: Optional[str] = None
+    email: Optional[EmailStr] = None
     password: Optional[str] = None
     is_active: Optional[bool] = None
     is_admin: Optional[bool] = None
@@ -171,3 +172,23 @@ class WorkOrder(WorkOrderBase):
     class Config:
         from_attributes = True
         json_encoders = {datetime: lambda dt: dt.isoformat()}
+
+
+# ------ Shop Settings Models ------
+class ShopSettings(BaseModel):
+    name: str = ""
+    address: str = ""
+    phone: str = ""
+    email: str = ""
+    website: str = ""
+
+    class Config:
+        from_attributes = True
+
+
+class ShopSettingsUpdate(BaseModel):
+    name: Optional[str] = None
+    address: Optional[str] = None
+    phone: Optional[str] = None
+    email: Optional[str] = None
+    website: Optional[str] = None

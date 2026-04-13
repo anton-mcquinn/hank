@@ -1,6 +1,7 @@
-import json
-import asyncio
+import logging
 import httpx
+
+logger = logging.getLogger(__name__)
 
 
 async def get_vehicle_info(vin):
@@ -10,11 +11,10 @@ async def get_vehicle_info(vin):
         async with httpx.AsyncClient() as client:
             response = await client.get(link)
             if response.status_code == 200:
-                data = response.json()
-                return data
+                return response.json()
             else:
-                print(f"NHTSA API error: {response.text}")
+                logger.error("NHTSA API error for VIN %s: %s", vin, response.text)
                 return {}
-    except Exception as e:
-        print(f"Error getting vehicle info: {e}")
+    except httpx.RequestError as e:
+        logger.error("Network error decoding VIN %s: %s", vin, e)
         return {}

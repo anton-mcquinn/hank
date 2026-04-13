@@ -4,12 +4,11 @@ import { DarkTheme, DefaultTheme, ThemeProvider } from '@react-navigation/native
 import { useFonts } from 'expo-font';
 import { Stack, Redirect, useSegments, useRouter, useRootNavigationState } from 'expo-router';
 import { AuthProvider, AuthContext } from './context/AuthContext';
+import { ThemeProvider as AppThemeProvider, ThemeContext } from './context/ThemeContext';
 import * as SplashScreen from 'expo-splash-screen';
 import { StatusBar } from 'expo-status-bar';
 import 'react-native-reanimated';
 import SplashScreenComponent from './components/SplashScreenComponent';
-
-import { useColorScheme } from './hooks/useColorScheme';
 
 // Prevent the splash screen from auto-hiding before asset loading is complete.
 SplashScreen.preventAutoHideAsync();
@@ -57,8 +56,8 @@ function AuthCheck({ children }: { children: React.ReactNode }) {
     }
     return <>{children}</>;
 }
-export default function RootLayout() {
-  const colorScheme = useColorScheme();
+function ThemedApp() {
+  const { colorScheme } = useContext(ThemeContext);
   const [loaded] = useFonts({
     SpaceMono: require('../assets/fonts/SpaceMono-Regular.ttf'),
   });
@@ -72,15 +71,21 @@ export default function RootLayout() {
       <AuthProvider>
         <AuthCheck>
           <Stack>
-            <Stack.Screen name="(tabs)" options={{ 
-              headerShown: false
-            }} />
+            <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
             <Stack.Screen name="auth" options={{ headerShown: false }} />
             <Stack.Screen name="+not-found" />
           </Stack>
           <StatusBar style="auto" />
         </AuthCheck>
-      </AuthProvider> 
+      </AuthProvider>
     </ThemeProvider>
+  );
+}
+
+export default function RootLayout() {
+  return (
+    <AppThemeProvider>
+      <ThemedApp />
+    </AppThemeProvider>
   );
 }

@@ -88,3 +88,5 @@ typing-extensions==4.12.2
     #   sqlalchemy
 uvicorn==0.34.0
     # via -r requirements.in
+email-validator==2.3.0
+slowapi==0.1.9

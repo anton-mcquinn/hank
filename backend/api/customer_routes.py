@@ -1,17 +1,46 @@
 import logging
-from fastapi import APIRouter, Depends, HTTPException
-from sqlalchemy.orm import Session
-from typing import List
+import os
 import uuid
 from datetime import datetime
-from fastapi import UploadFile, File
+from pathlib import Path
+from typing import List
+
 import aiofiles
+from fastapi import APIRouter, Depends, HTTPException, UploadFile, File
+from sqlalchemy.orm import Session
+
 from api.models import Customer, CustomerCreate, CustomerUpdate, CustomerBase
 from api.auth_dependencies import get_current_user
 from database.db import get_db
 from database.repos import CustomerRepository, VehicleRepository
 
 logger = logging.getLogger(__name__)
+
+_UPLOAD_DIR = os.getenv("UPLOAD_DIR", "./uploads")
+_MAX_IMAGE_BYTES = 10 * 1024 * 1024  # 10 MB
+_ALLOWED_IMAGE_EXT = {".jpg", ".jpeg", ".png", ".heic", ".heif", ".gif", ".webp"}
+
+
+async def _save_customer_image(upload: UploadFile) -> str:
+    """Validate, save, and return the file path for a customer image upload."""
+    ext = Path(upload.filename or "").suffix.lower()
+    if ext not in _ALLOWED_IMAGE_EXT:
+        raise HTTPException(status_code=400, detail=f"Unsupported image type '{ext}'")
+
+    content = await upload.read()
+    if len(content) > _MAX_IMAGE_BYTES:
+        raise HTTPException(status_code=413, detail="Image exceeds 10 MB limit")
+
+    images_dir = Path(_UPLOAD_DIR) / "images"
+    images_dir.mkdir(parents=True, exist_ok=True)
+
+    # Use only the validated extension — never the original filename
+    file_path = images_dir / f"customer_{uuid.uuid4()}{ext}"
+
+    async with aiofiles.open(file_path, "wb") as f:
+        await f.write(content)
+
+    return str(file_path)
 
 router = APIRouter(dependencies=[Depends(get_current_user)])
 
@@ -22,31 +51,12 @@ async def extract_customer_info(
 ):
     """Extract customer info from an image without creating the customer"""
     try:
-        # Validate image file
+        from services.image import extract_customer_info_from_image
+
         if not customer_image:
             raise HTTPException(status_code=400, detail="Customer image is required")
 
-        # Create a temporary file to store the uploaded image
-        import os
-        from services.image import extract_customer_info_from_image
-
-        # Ensure upload directory exists
-        UPLOAD_DIR = os.getenv("UPLOAD_DIR", "./uploads")
-        os.makedirs(os.path.join(UPLOAD_DIR, "images"), exist_ok=True)
-
-        # Save the uploaded file
-        file_path = os.path.join(
-            UPLOAD_DIR,
-            "images",
-            f"customer_{uuid.uuid4()}{os.path.splitext(customer_image.filename)[1]}",
-        )
-
-        # Read file content and save to disk
-        content = await customer_image.read()
-        async with aiofiles.open(file_path, "wb") as f:
-            await f.write(content)
-
-        # Extract customer info from image using Vision API
+        file_path = await _save_customer_image(customer_image)
         customer_info = await extract_customer_info_from_image(file_path)
 
         if not customer_info:
@@ -96,31 +106,12 @@ async def create_customer_image(
 ):
     """Create a customer from an image"""
     try:
-        # Validate image file
+        from services.image import extract_customer_info_from_image
+
         if not customer_image:
             raise HTTPException(status_code=400, detail="Customer image is required")
 
-        # Create a temporary file to store the uploaded image
-        import os
-        from services.image import extract_customer_info_from_image
-
-        # Ensure upload directory exists
-        UPLOAD_DIR = os.getenv("UPLOAD_DIR", "./uploads")
-        os.makedirs(os.path.join(UPLOAD_DIR, "images"), exist_ok=True)
-
-        # Save the uploaded file
-        file_path = os.path.join(
-            UPLOAD_DIR,
-            "images",
-            f"customer_{uuid.uuid4()}{os.path.splitext(customer_image.filename)[1]}",
-        )
-
-        # Read file content and save to disk
-        content = await customer_image.read()
-        async with aiofiles.open(file_path, "wb") as f:
-            await f.write(content)
-
-        # Extract customer info from image using Vision API
+        file_path = await _save_customer_image(customer_image)
         customer_info = await extract_customer_info_from_image(file_path)
 
         if not customer_info:

@@ -56,8 +56,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     try {
       const storedToken = await SecureStore.getItemAsync('userToken');
       if (storedToken) {
-        setUserToken(storedToken);
-        // Load user info
+        // Validate the token before exposing it to the app
         await getUserInfo(storedToken);
       }
     } catch (error) {
@@ -72,18 +71,19 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     try {
       const headers = { Authorization: `Bearer ${token}` };
       const response = await fetch(`${api.getBaseUrl()}/auth/me`, { headers });
-      
+
       if (!response.ok) {
-        // If invalid token
-        await logout();
+        // Invalid or expired token — clear it silently without setting an error
+        await SecureStore.deleteItemAsync('userToken');
         return;
       }
-      
+
       const data = await response.json();
+      setUserToken(token);
       setUserInfo(data);
     } catch (error) {
       console.error('Error fetching user info:', error);
-      await logout();
+      await SecureStore.deleteItemAsync('userToken');
     }
   };
 

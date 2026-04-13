@@ -43,7 +43,7 @@ const SplashScreenComponent: React.FC<SplashScreenProps> = ({ onFinish }) => {
           resizeMode="contain"
         />
         <ThemedText type="title" style={styles.title}>
-          Auto Shop Manager
+          Virtual Service Writer
         </ThemedText>
         <ThemedText style={styles.subtitle}>
           Streamline your automotive business

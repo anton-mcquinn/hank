@@ -1,44 +1,37 @@
-import React, { useState, useEffect } from "react";
-import { 
-  StyleSheet, 
-  ScrollView, 
-  Switch, 
-  TouchableOpacity, 
-  View, 
+import React, { useContext } from "react";
+import {
+  StyleSheet,
+  ScrollView,
+  Switch,
+  TouchableOpacity,
+  View,
   Alert
 } from "react-native";
 import { FontAwesome5, MaterialIcons, Ionicons } from '@expo/vector-icons';
+import { router } from 'expo-router';
 
 import ThemedText from "../components/ThemedText";
 import ThemedView from "../components/ThemedView";
-import { useColorScheme } from "../hooks/useColorScheme";
 import { Colors } from "../constants/Colors";
+import { AuthContext } from "../context/AuthContext";
+import { ThemeContext } from "../context/ThemeContext";
 
 // App version - would be dynamic in production
 const APP_VERSION = "1.0.0";
 
 export default function More() {
-  const colorScheme = useColorScheme();
-  const [isDarkMode, setIsDarkMode] = useState(colorScheme === 'dark');
-  const [isSystemTheme, setIsSystemTheme] = useState(true);
+  const { colorScheme, preference, setPreference } = useContext(ThemeContext);
+  const { logout, userInfo } = useContext(AuthContext);
 
-  // Update dark mode state when system theme changes
-  useEffect(() => {
-    if (isSystemTheme) {
-      setIsDarkMode(colorScheme === 'dark');
-    }
-  }, [colorScheme, isSystemTheme]);
+  const isSystemTheme = preference === 'system';
+  const isDarkMode = colorScheme === 'dark';
 
   const handleToggleSystemTheme = (value: boolean) => {
-    setIsSystemTheme(value);
-    if (value) {
-      // If using system theme, set dark mode based on system setting
-      setIsDarkMode(colorScheme === 'dark');
-    }
+    setPreference(value ? 'system' : (isDarkMode ? 'dark' : 'light'));
   };
 
   const handleToggleDarkMode = (value: boolean) => {
-    setIsDarkMode(value);
+    setPreference(value ? 'dark' : 'light');
   };
 
   return (
@@ -97,6 +90,34 @@ export default function More() {
           </ThemedView>
         </ThemedView>
         
+        {/* SHOP SECTION */}
+        <ThemedView style={styles.section}>
+          <ThemedText type="subtitle">Shop</ThemedText>
+
+          <TouchableOpacity
+            style={styles.menuItem}
+            lightColor="#ffffff"
+            darkColor="#333333"
+            onPress={() => router.push('/shop/edit')}
+          >
+            <View style={styles.menuItemContent}>
+              <View style={styles.menuItemIcon}>
+                <FontAwesome5
+                  name="store"
+                  size={20}
+                  color={colorScheme === 'dark' ? Colors.dark.icon : Colors.light.icon}
+                />
+              </View>
+              <ThemedText>Shop Info</ThemedText>
+            </View>
+            <MaterialIcons
+              name="chevron-right"
+              size={24}
+              color={colorScheme === 'dark' ? Colors.dark.icon : Colors.light.icon}
+            />
+          </TouchableOpacity>
+        </ThemedView>
+
         {/* HELP & SUPPORT SECTION */}
         <ThemedView style={styles.section}>
           <ThemedText type="subtitle">Help & Support</ThemedText>
@@ -134,24 +155,50 @@ export default function More() {
             lightColor="#f8f8f8"
             darkColor="#222"
           >
-            <ThemedText style={styles.appName}>Auto Shop Manager</ThemedText>
+            <ThemedText style={styles.appName}>Virtual Service Writer</ThemedText>
             <ThemedText style={styles.versionText}>Version {APP_VERSION}</ThemedText>
             <ThemedText style={styles.copyrightText}>© 2025 Auto Shop Software</ThemedText>
           </ThemedView>
         </ThemedView>
 
-        {/* ACCOUNT/LOGIN PLACEHOLDER */}
-        <ThemedView style={[styles.section, styles.accountSection]}>
-          <TouchableOpacity 
-            style={styles.accountButton}
-            onPress={() => Alert.alert("Coming Soon", "User accounts and authentication will be available in a future update.")}
+        {/* ACCOUNT SECTION */}
+        <ThemedView style={styles.section}>
+          <ThemedText type="subtitle">Account</ThemedText>
+
+          {userInfo && (
+            <ThemedView
+              style={styles.settingItem}
+              lightColor="#ffffff"
+              darkColor="#333333"
+            >
+              <View style={styles.settingItemContent}>
+                <View style={styles.settingItemIcon}>
+                  <FontAwesome5
+                    name="user-circle"
+                    size={22}
+                    color={colorScheme === 'dark' ? Colors.dark.icon : Colors.light.icon}
+                  />
+                </View>
+                <View>
+                  <ThemedText style={{ fontWeight: '600' }}>{userInfo.username}</ThemedText>
+                  <ThemedText style={{ fontSize: 12, opacity: 0.6 }}>{userInfo.email}</ThemedText>
+                </View>
+              </View>
+            </ThemedView>
+          )}
+
+          <TouchableOpacity
+            style={styles.logoutButton}
+            onPress={() =>
+              Alert.alert('Log Out', 'Are you sure you want to log out?', [
+                { text: 'Cancel', style: 'cancel' },
+                { text: 'Log Out', style: 'destructive', onPress: logout },
+              ])
+            }
           >
-            <FontAwesome5 name="user-circle" size={20} color="#fff" style={styles.accountButtonIcon} />
-            <ThemedText style={styles.accountButtonText}>Sign In / Register</ThemedText>
+            <Ionicons name="log-out-outline" size={20} color="#fff" style={styles.logoutIcon} />
+            <ThemedText style={styles.logoutText}>Log Out</ThemedText>
           </TouchableOpacity>
-          <ThemedText style={styles.accountNote}>
-            User accounts coming soon. Unlock cloud backup, multi-device sync, and team collaboration.
-          </ThemedText>
         </ThemedView>
       </ScrollView>
     </ThemedView>
@@ -226,33 +273,21 @@ const styles = StyleSheet.create({
     fontSize: 12,
     marginBottom: 16,
   },
-  accountSection: {
-    alignItems: 'center',
-    marginTop: 16,
-    marginBottom: 40,
-  },
-  accountButton: {
-    backgroundColor: '#0a7ea4',
+  logoutButton: {
+    backgroundColor: '#d0021b',
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
     padding: 14,
     borderRadius: 8,
-    width: '100%',
-    marginBottom: 12,
+    marginTop: 8,
   },
-  accountButtonIcon: {
+  logoutIcon: {
     marginRight: 8,
   },
-  accountButtonText: {
+  logoutText: {
     color: 'white',
     fontWeight: '600',
     fontSize: 16,
-  },
-  accountNote: {
-    textAlign: 'center',
-    opacity: 0.7,
-    fontSize: 12,
-    paddingHorizontal: 20,
   },
 });

@@ -21,6 +21,7 @@ export default function LoginScreen() {
 
   return (
     <ThemedView style={styles.container}>
+      <ThemedText type="title" style={styles.appName}>Virtual Service Writer</ThemedText>
       <ThemedText type="title" style={styles.title}>Log In</ThemedText>
       
       {isError && (
@@ -72,6 +73,10 @@ const styles = StyleSheet.create({
     flex: 1,
     padding: 20,
     justifyContent: 'center',
+  },
+  appName: {
+    textAlign: 'center',
+    marginBottom: 4,
   },
   title: {
     marginBottom: 24,

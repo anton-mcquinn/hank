@@ -1,9 +1,12 @@
+import logging
 import os
 import uuid
 from datetime import datetime
 from pathlib import Path
 import jinja2
 from dotenv import load_dotenv
+
+logger = logging.getLogger(__name__)
 from io import BytesIO
 from reportlab.lib.pagesizes import letter
 from reportlab.lib import colors
@@ -23,11 +26,12 @@ load_dotenv()
 # Configuration from environment variables
 INVOICE_DIR = os.getenv("INVOICE_DIR", "./invoices")
 TEMPLATE_DIR = os.getenv("TEMPLATE_DIR", "./backend/templates")
-COMPANY_NAME = os.getenv("COMPANY_NAME", "Auto Shop")
-COMPANY_ADDRESS = os.getenv("COMPANY_ADDRESS", "123 Main St, Anytown, USA")
-COMPANY_PHONE = os.getenv("COMPANY_PHONE", "(555) 123-4567")
-COMPANY_EMAIL = os.getenv("COMPANY_EMAIL", "service@autoshop.com")
-COMPANY_WEBSITE = os.getenv("COMPANY_WEBSITE", "www.yourautoshop.com")
+# Env var fallbacks (used when no DB shop settings exist yet)
+_ENV_COMPANY_NAME = os.getenv("COMPANY_NAME", "Auto Shop")
+_ENV_COMPANY_ADDRESS = os.getenv("COMPANY_ADDRESS", "123 Main St, Anytown, USA")
+_ENV_COMPANY_PHONE = os.getenv("COMPANY_PHONE", "(555) 123-4567")
+_ENV_COMPANY_EMAIL = os.getenv("COMPANY_EMAIL", "service@autoshop.com")
+_ENV_COMPANY_WEBSITE = os.getenv("COMPANY_WEBSITE", "www.yourautoshop.com")
 
 # Ensure directories exist
 os.makedirs(INVOICE_DIR, exist_ok=True)
@@ -39,7 +43,7 @@ template_env = jinja2.Environment(loader=template_loader)
 
 
 async def generate_invoice_html(
-    work_order, customer=None, vehicle=None, is_estimate=False
+    work_order, customer=None, vehicle=None, is_estimate=False, shop_settings=None
 ):
     """
     Generate an HTML invoice or estimate using a template
@@ -119,14 +123,22 @@ async def generate_invoice_html(
                 }
             )
 
+        # Resolve company info: DB settings take priority, fall back to env vars
+        s = shop_settings
+        company_name = (s.name if s and s.name else None) or _ENV_COMPANY_NAME
+        company_address = (s.address if s and s.address else None) or _ENV_COMPANY_ADDRESS
+        company_phone = (s.phone if s and s.phone else None) or _ENV_COMPANY_PHONE
+        company_email = (s.email if s and s.email else None) or _ENV_COMPANY_EMAIL
+        company_website = (s.website if s and s.website else None) or _ENV_COMPANY_WEBSITE
+
         # Prepare template data
         template_data = {
             # Company info
-            "company_name": COMPANY_NAME,
-            "company_address": COMPANY_ADDRESS,
-            "company_phone": COMPANY_PHONE,
-            "company_email": COMPANY_EMAIL,
-            "company_website": COMPANY_WEBSITE,
+            "company_name": company_name,
+            "company_address": company_address,
+            "company_phone": company_phone,
+            "company_email": company_email,
+            "company_website": company_website,
             # Document info
             "document_type": document_type,
             "order_id": work_order.id[:8],
@@ -165,10 +177,7 @@ async def generate_invoice_html(
         return html_content, html_path, template_data
 
     except Exception as e:
-        print(f"Error generating HTML invoice: {e}")
-        import traceback
-
-        traceback.print_exc()
+        logger.error("Error generating HTML invoice: %s", e, exc_info=True)
         return None, None, None
 
 
@@ -462,8 +471,5 @@ async def generate_pdf_with_reportlab(template_data, output_path=None):
         return output_path
 
     except Exception as e:
-        print(f"Error generating PDF with ReportLab: {e}")
-        import traceback
-
-        traceback.print_exc()
+        logger.error("Error generating PDF with ReportLab: %s", e, exc_info=True)
         return None

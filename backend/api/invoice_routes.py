@@ -9,7 +9,7 @@ from pathlib import Path
 
 from api.auth_dependencies import get_current_user
 from database.db import get_db
-from database.repos import WorkOrderRepository, CustomerRepository, VehicleRepository
+from database.repos import WorkOrderRepository, CustomerRepository, VehicleRepository, ShopSettingsRepository
 from services.invoice_generator_html import (
     generate_invoice_html,
     generate_pdf_with_reportlab,
@@ -62,9 +62,11 @@ async def generate_invoice(
     if work_order.vehicle_id:
         vehicle = VehicleRepository.get_by_id(db, work_order.vehicle_id)
 
+    shop = ShopSettingsRepository.get(db)
+
     # Generate HTML invoice using template
     html_content, html_path, template_data = await generate_invoice_html(
-        work_order, customer, vehicle, is_estimate=False
+        work_order, customer, vehicle, is_estimate=False, shop_settings=shop
     )
 
     if not html_content:
@@ -123,9 +125,11 @@ async def generate_estimate(
     if work_order.vehicle_id:
         vehicle = VehicleRepository.get_by_id(db, work_order.vehicle_id)
 
+    shop = ShopSettingsRepository.get(db)
+
     # Generate HTML estimate using template
     html_content, html_path, template_data = await generate_invoice_html(
-        work_order, customer, vehicle, is_estimate=True
+        work_order, customer, vehicle, is_estimate=True, shop_settings=shop
     )
 
     if not html_content:

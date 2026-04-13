@@ -1,9 +1,9 @@
-import React, { useEffect, useState, useCallback } from "react";
-import { 
-  StyleSheet, 
-  ScrollView, 
-  View, 
-  ActivityIndicator, 
+import React, { useEffect, useState, useCallback, useContext } from "react";
+import {
+  StyleSheet,
+  ScrollView,
+  View,
+  ActivityIndicator,
   TouchableOpacity,
   RefreshControl,
 } from "react-native";
@@ -16,9 +16,11 @@ import api from "../api";
 import { WorkOrder, Customer } from "../api/types";
 import { useColorScheme } from "../hooks/useColorScheme";
 import { Colors } from "../constants/Colors";
+import { AuthContext } from "../context/AuthContext";
 
 export default function Index() {
   const colorScheme = useColorScheme() ?? 'light';
+  const { userToken } = useContext(AuthContext);
   const [workorders, setWorkorders] = useState<WorkOrder[]>([]);
   const [customers, setCustomers] = useState<Customer[]>([]);
   const [loading, setLoading] = useState(true);
@@ -40,11 +42,13 @@ export default function Index() {
     day: 'numeric'
   });
 
-  // Load data when component mounts
-      useFocusEffect(
-        useCallback(() => {
-          loadDashboardData();
-    }, [])
+  // Load data when component mounts (only when authenticated)
+  useFocusEffect(
+    useCallback(() => {
+      if (userToken) {
+        loadDashboardData();
+      }
+    }, [userToken])
   );
 
   // Function to load all dashboard data

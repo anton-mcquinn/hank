@@ -1,8 +1,10 @@
 # backend/api/auth_routes.py
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Request, status
 from fastapi.security import OAuth2PasswordRequestForm
 from sqlalchemy.orm import Session
 from datetime import timedelta
+
+from api.rate_limit import limiter
 
 from database.db import get_db
 from database.repos import UserRepository
@@ -21,7 +23,9 @@ router = APIRouter()
 
 
 @router.post("/token", response_model=Token)
+@limiter.limit("10/minute")
 async def login_for_access_token(
+    request: Request,
     form_data: OAuth2PasswordRequestForm = Depends(), db: Session = Depends(get_db)
 ):
     """Authenticate user and provide JWT token"""

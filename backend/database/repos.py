@@ -1,9 +1,12 @@
+import logging
 from datetime import datetime
 import uuid
 from sqlalchemy.orm import Session
 from typing import Dict, Any, List, Optional
 
-from .db import UserDB, CustomerDB, VehicleDB, WorkOrderDB
+logger = logging.getLogger(__name__)
+
+from .db import UserDB, CustomerDB, VehicleDB, WorkOrderDB, ShopSettingsDB
 
 
 class UserRepository:
@@ -191,11 +194,35 @@ class VehicleRepository:
         return db.query(VehicleDB).all()
 
 
+class ShopSettingsRepository:
+    SINGLETON_ID = 1
+
+    @staticmethod
+    def get(db: Session) -> ShopSettingsDB:
+        row = db.query(ShopSettingsDB).filter(ShopSettingsDB.id == ShopSettingsRepository.SINGLETON_ID).first()
+        if not row:
+            row = ShopSettingsDB(id=ShopSettingsRepository.SINGLETON_ID)
+            db.add(row)
+            db.commit()
+            db.refresh(row)
+        return row
+
+    @staticmethod
+    def update(db: Session, data: Dict[str, Any]) -> ShopSettingsDB:
+        row = ShopSettingsRepository.get(db)
+        for key, value in data.items():
+            setattr(row, key, value)
+        row.updated_at = datetime.now()
+        db.commit()
+        db.refresh(row)
+        return row
+
+
 class WorkOrderRepository:
     @staticmethod
     def create(db, work_order_data):
         work_order_db = WorkOrderDB(**work_order_data)
-        print(f"Creating work order with {work_order_data}")
+        logger.info("Creating work order: %s", work_order_data.get("id"))
         db.add(work_order_db)
         db.commit()
         db.refresh(work_order_db)
@@ -208,7 +235,7 @@ class WorkOrderRepository:
             return None
 
         # Update fields
-        print(f"Updating work order with {work_order_data}")
+        logger.info("Updating work order: %s", order_id)
         for key, value in work_order_data.items():
             setattr(work_order, key, value)
 

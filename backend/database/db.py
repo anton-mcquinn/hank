@@ -15,10 +15,10 @@ from sqlalchemy.orm import sessionmaker, relationship
 from datetime import datetime
 import os
 
-# Database configuration
-DATABASE_URL = os.getenv(
-    "DATABASE_URL", "postgresql://postgres:postgres@localhost:5432/hank"
-)
+# Database configuration — must be set explicitly via environment variable
+DATABASE_URL = os.getenv("DATABASE_URL")
+if not DATABASE_URL:
+    raise RuntimeError("DATABASE_URL environment variable is not set")
 
 # Create SQLAlchemy engine
 engine = create_engine(DATABASE_URL)
@@ -58,7 +58,7 @@ class VehicleDB(Base):
     __tablename__ = "vehicles"
 
     id = Column(String, primary_key=True, index=True)
-    customer_id = Column(String, ForeignKey("customers.id"))
+    customer_id = Column(String, ForeignKey("customers.id"), index=True)
     vin = Column(String, index=True, nullable=True)
     plate = Column(String, nullable=True)
     year = Column(Integer, nullable=True)
@@ -75,9 +75,9 @@ class WorkOrderDB(Base):
     __tablename__ = "work_orders"
 
     id = Column(String, primary_key=True, index=True)
-    customer_id = Column(String, ForeignKey("customers.id"), nullable=True)
+    customer_id = Column(String, ForeignKey("customers.id"), nullable=True, index=True)
     customer_name = Column(String, nullable=True)
-    vehicle_id = Column(String, ForeignKey("vehicles.id"), nullable=True)
+    vehicle_id = Column(String, ForeignKey("vehicles.id"), nullable=True, index=True)
     vehicle_info = Column(JSON, default={})
     work_summary = Column(String, default="")
     line_items = Column(JSON, default=[])
@@ -87,6 +87,18 @@ class WorkOrderDB(Base):
     status = Column(String, default="draft")
     processing_notes = Column(JSON, default=[])
     created_at = Column(TIMESTAMP, default=datetime.now)
+    updated_at = Column(TIMESTAMP, default=datetime.now)
+
+
+class ShopSettingsDB(Base):
+    __tablename__ = "shop_settings"
+
+    id = Column(Integer, primary_key=True, default=1)
+    name = Column(String, default="")
+    address = Column(String, default="")
+    phone = Column(String, default="")
+    email = Column(String, default="")
+    website = Column(String, default="")
     updated_at = Column(TIMESTAMP, default=datetime.now)
 
 
