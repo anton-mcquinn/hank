@@ -12,4 +12,6 @@ markdown
 pdfkit
 reportlab
 jinja2
-jose
+python-jose[cryptography]
+bcrypt
+passlib[bcrypt]
