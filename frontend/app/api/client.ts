@@ -1,5 +1,4 @@
 // API client for making HTTP requests to the backend
-import { Platform } from 'react-native';
 import * as SecureStore from 'expo-secure-store';
 
 export const getAuthHeader = async (): Promise<Record<string, string>> => {
@@ -14,13 +13,9 @@ export const getAuthHeader = async (): Promise<Record<string, string>> => {
   return {};
 };
 
-// Base URL configuration - adjust this based on your environment
 const API_URL = {
-  // Use localhost for iOS simulator, 10.0.2.2 for Android emulator
-  development: Platform.OS === 'ios' 
-    ? 'http://192.168.0.89:8000/api/v1'
-    : 'http://10.0.2.2:8000/api/v1',
-  production: 'https://your-api-domain.com/api/v1'
+  development: 'https://hank.idleworkshop.com/api/v1',
+  production: 'https://hank.idleworkshop.com/api/v1',
 };
 
 // Get the appropriate API URL based on environment
