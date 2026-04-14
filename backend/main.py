@@ -2,6 +2,10 @@ import logging
 import os
 import sys
 from pathlib import Path
+from dotenv import load_dotenv
+
+load_dotenv()
+
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from slowapi import _rate_limit_exceeded_handler
@@ -16,9 +20,6 @@ from api.vehicle_routes import router as vehicle_router
 from api.invoice_routes import router as invoice_router
 from api.shop_routes import router as shop_router
 from database.db import init_db
-from dotenv import load_dotenv
-
-load_dotenv()
 
 logging.basicConfig(
     level=logging.INFO,
