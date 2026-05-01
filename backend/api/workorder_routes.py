@@ -34,7 +34,7 @@ logger = logging.getLogger(__name__)
 router = APIRouter(dependencies=[Depends(get_current_user)])
 
 # Resolved at import time from environment — not accepted from clients
-__UPLOAD_DIR = os.getenv("_UPLOAD_DIR", "./uploads")
+_UPLOAD_DIR = os.getenv("UPLOAD_DIR", "./uploads")
 _OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
 
 # Upload validation constants
@@ -48,8 +48,8 @@ class WorkOrderWithRelations(BaseModel):
     """Extended work order model that includes related customer and vehicle data"""
 
     id: str
-    customer_id: str = None
-    vehicle_id: str = None
+    customer_id: Optional[str] = None
+    vehicle_id: Optional[str] = None
     vehicle_info: Dict[str, Any] = {}
     work_summary: str = ""
     line_items: List[Dict[str, Any]] = []
@@ -59,8 +59,8 @@ class WorkOrderWithRelations(BaseModel):
     status: str = "processing"
     created_at: datetime
     updated_at: datetime
-    customer: Customer = None
-    vehicle: Vehicle = None
+    customer: Optional[Customer] = None
+    vehicle: Optional[Vehicle] = None
 
     class Config:
         from_attributes = True
@@ -404,11 +404,11 @@ async def process_uploads(
                             "mileage": vehicle_info.get("mileage"),
                             "plate": vehicle_info.get("plate"),
                         }
-                    new_vehicle = VehicleRepository.create(db, vehicle_data)
-                    vehicle_id = new_vehicle.id
-                    update_data["processing_notes"].append(
-                        "Created new vehicle with partial info"
-                    )
+                        new_vehicle = VehicleRepository.create(db, vehicle_data)
+                        vehicle_id = new_vehicle.id
+                        update_data["processing_notes"].append(
+                            "Created new vehicle with partial info"
+                        )
             except Exception as e:
                 logger.error("Error creating vehicle for order %s: %s", order_id, e)
                 update_data["processing_notes"].append(

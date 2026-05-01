@@ -422,9 +422,7 @@ export default function InvoicesScreen() {
           onClose={() => setPdfModalVisible(false)}
           pdfUrl={currentPdfUrl}
           title={pdfTitle}
-          baseApiUrl={Platform.OS === 'ios' 
-            ? 'http://192.168.0.43:8000' 
-            : 'http://192.168.0.43:8000'}
+          baseApiUrl="https://hank.idleworkshop.com"
         />
       </ThemedView>
     </SafeAreaView>

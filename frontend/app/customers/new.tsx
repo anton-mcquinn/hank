@@ -122,28 +122,17 @@ export default function NewCustomerScreen() {
 const extractCustomerInfo = async (imageFile) => {
   setExtracting(true);
   try {
-    // Create form data with the image
     const formData = new FormData();
     formData.append('customer_image', imageFile);
-    
-    // Make API request to the extraction-only endpoint
-    const response = await fetch('http://192.168.0.43:8000/api/v1/extract-customer-info', {
-      method: 'POST',
-      body: formData,
-      headers: {
-        'Accept': 'application/json',
-      },
-    });
-    
-    if (!response.ok) {
-      const errorData = await response.json();
-      throw new Error(errorData.detail || 'Failed to extract customer information');
-    }
-    
-    // Get the response data
-    const customerData = await response.json();
-    
-    // Update form with extracted data
+
+    const customerData = await api.raw.upload<{
+      first_name: string;
+      last_name: string;
+      email: string;
+      phone: string;
+      address: string;
+    }>('/extract-customer-info', formData);
+
     setCustomer({
       first_name: customerData.first_name,
       last_name: customerData.last_name,
@@ -151,7 +140,7 @@ const extractCustomerInfo = async (imageFile) => {
       phone: customerData.phone,
       address: customerData.address,
     });
-    
+
     Alert.alert('Success', 'Customer information extracted and populated in form. Review and click "Create Customer" to save.');
   } catch (error) {
     console.error('Error extracting customer info:', error);
