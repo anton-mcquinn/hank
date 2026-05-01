@@ -27,11 +27,11 @@ from services.image import (
 from services.generate import generate_work_summary
 from services.vehicle_info import get_year_make_model
 from database.repos import WorkOrderRepository, CustomerRepository, VehicleRepository
-from database.db import get_db
+from database.db import UserDB, get_db
 
 logger = logging.getLogger(__name__)
 
-router = APIRouter(dependencies=[Depends(get_current_user)])
+router = APIRouter()
 
 # Resolved at import time from environment — not accepted from clients
 _UPLOAD_DIR = os.getenv("UPLOAD_DIR", "./uploads")
@@ -88,14 +88,13 @@ async def create_work_order(
     customer_phone: Optional[str] = Form(None),
     customer_email: Optional[str] = Form(None),
     vehicle_id: Optional[str] = Form(None),
+    current_user: UserDB = Depends(get_current_user),
 ):
     """Create a new work order from audio files and images"""
     try:
-        # Generate work order ID
         order_id = str(uuid.uuid4())
         timestamp = datetime.now().isoformat()
 
-        # Prepare work order data
         work_order_data = {
             "id": order_id,
             "created_at": timestamp,
@@ -110,9 +109,8 @@ async def create_work_order(
             "processing_notes": ["Work order created, processing media files..."],
         }
 
-        # If customer ID provided, verify customer exists
         if customer_id:
-            customer = CustomerRepository.get_by_id(db, customer_id)
+            customer = CustomerRepository.get_by_id(db, current_user.id, customer_id)
             if not customer:
                 raise HTTPException(status_code=404, detail="Customer not found")
             work_order_data["customer_id"] = customer_id
@@ -120,15 +118,13 @@ async def create_work_order(
                 f"{customer.first_name} {customer.last_name}"
             )
 
-        # If vehicle ID provided, verify vehicle exists
         if vehicle_id:
-            vehicle = VehicleRepository.get_by_id(db, vehicle_id)
+            vehicle = VehicleRepository.get_by_id(db, current_user.id, vehicle_id)
             if not vehicle:
                 raise HTTPException(status_code=404, detail="Vehicle not found")
             work_order_data["vehicle_id"] = vehicle_id
 
-        # Save work order to database
-        WorkOrderRepository.create(db, work_order_data)
+        WorkOrderRepository.create(db, current_user.id, work_order_data)
 
         # Read and validate file contents before they get closed
         audio_contents = []
@@ -165,6 +161,7 @@ async def create_work_order(
         # Process uploads in background with file contents instead of file objects
         background_tasks.add_task(
             process_uploads,
+            current_user.id,
             order_id,
             audio_contents,
             audio_filenames,
@@ -192,6 +189,7 @@ async def create_work_order(
 
 
 async def process_uploads(
+    user_id,
     order_id,
     audio_contents,
     audio_filenames,
@@ -213,13 +211,13 @@ async def process_uploads(
         db = next(get_db())
 
         # Get work order
-        work_order = WorkOrderRepository.get_by_id(db, order_id)
+        work_order = WorkOrderRepository.get_by_id(db, user_id, order_id)
         if not work_order:
             logger.error("Work order %s not found", order_id)
             return
 
         WorkOrderRepository.update(
-            db, order_id, {"processing_notes": ["Processing started..."]}
+            db, user_id, order_id, {"processing_notes": ["Processing started..."]}
         )
         # Process vehicle information images
         vehicle_info = work_order.vehicle_info or {}
@@ -315,23 +313,17 @@ async def process_uploads(
 
         # Process customer info if we have it
         if not customer_id and (customer_name or customer_phone or customer_email):
-            # Try to find existing customer by phone or email
             logger.info("Looking for existing customer for order %s", order_id)
             customer = None
             if customer_phone:
-                customer = CustomerRepository.get_by_phone(db, customer_phone)
+                customer = CustomerRepository.get_by_phone(db, user_id, customer_phone)
             if not customer and customer_email:
-                customer = CustomerRepository.get_by_email(db, customer_email)
+                customer = CustomerRepository.get_by_email(db, user_id, customer_email)
 
             if customer:
-                # Use existing customer
                 logger.info("Found existing customer for order %s", order_id)
-                if customer.id is None:
-                    id = str(uuid.uuid4())
-                    customer = CustomerRepository.update(db, id, {"id": id})
-                    customer_id = customer.id
+                customer_id = customer.id
             elif customer_name:
-                # Create new customer if we have at least a name
                 name_parts = customer_name.split(maxsplit=1)
                 first_name = name_parts[0]
                 last_name = name_parts[1] if len(name_parts) > 1 else ""
@@ -342,10 +334,10 @@ async def process_uploads(
                     "last_name": last_name,
                     "email": customer_email or "",
                     "phone": customer_phone or "",
-                    "address": "",  # Default empty address
+                    "address": "",
                 }
 
-                customer = CustomerRepository.create(db, customer_data)
+                customer = CustomerRepository.create(db, user_id, customer_data)
                 customer_id = customer.id
                 logger.info("Created new customer for order %s", order_id)
 
@@ -357,7 +349,7 @@ async def process_uploads(
         if not vehicle_id and customer_id:
             try:
                 if vin:
-                    existing_vehicle = VehicleRepository.get_by_vin(db, vin)
+                    existing_vehicle = VehicleRepository.get_by_vin(db, user_id, vin)
 
                     if existing_vehicle:
                         logger.info("Found existing vehicle for order %s", order_id)
@@ -370,9 +362,8 @@ async def process_uploads(
                         if odometer and int(odometer) > (existing_vehicle.mileage or 0):
                             update_fields["mileage"] = int(odometer)
                         if update_fields:
-                            VehicleRepository.update(db, vehicle_id, update_fields)
+                            VehicleRepository.update(db, user_id, vehicle_id, update_fields)
                     else:
-                        # Create new vehicle
                         vehicle_data = {
                             "id": str(uuid.uuid4()),
                             "customer_id": customer_id,
@@ -384,14 +375,13 @@ async def process_uploads(
                             "plate": plate,
                         }
 
-                        new_vehicle = VehicleRepository.create(db, vehicle_data)
+                        new_vehicle = VehicleRepository.create(db, user_id, vehicle_data)
                         vehicle_id = new_vehicle.id
                         update_data["processing_notes"].append(
                             "Created new vehicle with partial info"
                         )
                         logger.info("Created new vehicle for order %s", order_id)
                 else:
-                    # placeholder vehicle with minimal info
                     if vehicle_info and (
                         vehicle_info.get("make") or vehicle_info.get("model")
                     ):
@@ -404,7 +394,7 @@ async def process_uploads(
                             "mileage": vehicle_info.get("mileage"),
                             "plate": vehicle_info.get("plate"),
                         }
-                        new_vehicle = VehicleRepository.create(db, vehicle_data)
+                        new_vehicle = VehicleRepository.create(db, user_id, vehicle_data)
                         vehicle_id = new_vehicle.id
                         update_data["processing_notes"].append(
                             "Created new vehicle with partial info"
@@ -424,7 +414,7 @@ async def process_uploads(
             if vehicle_id:
                 update_fields["vehicle_id"] = vehicle_id
 
-            WorkOrderRepository.update(db, order_id, update_fields)
+            WorkOrderRepository.update(db, user_id, order_id, update_fields)
             update_data["processing_notes"].append("Updated work order references")
 
         # Process audio files
@@ -500,7 +490,7 @@ async def process_uploads(
             else:
                 update_data["status"] = "needs_review"
 
-        WorkOrderRepository.update(db, order_id, update_data)
+        WorkOrderRepository.update(db, user_id, order_id, update_data)
         logger.info("Work order %s updated with status: %s", order_id, update_data["status"])
 
     except Exception as e:
@@ -509,6 +499,7 @@ async def process_uploads(
             try:
                 WorkOrderRepository.update(
                     db,
+                    user_id,
                     order_id,
                     {
                         "status": "needs_review",
@@ -523,21 +514,25 @@ async def process_uploads(
 
 
 @router.get("/work-orders/{order_id}", response_model=WorkOrder)
-async def get_work_order(order_id: str, db: Session = Depends(get_db)):
+async def get_work_order(
+    order_id: str,
+    db: Session = Depends(get_db),
+    current_user: UserDB = Depends(get_current_user),
+):
     """Get a work order by ID with customer and vehicle details"""
-    work_order = WorkOrderRepository.get_by_id(db, order_id)
+    work_order = WorkOrderRepository.get_by_id(db, current_user.id, order_id)
     if not work_order:
         raise HTTPException(status_code=404, detail="Work order not found")
 
     response = WorkOrderWithRelations.from_orm(work_order)
 
     if work_order.customer_id:
-        customer = CustomerRepository.get_by_id(db, work_order.customer_id)
+        customer = CustomerRepository.get_by_id(db, current_user.id, work_order.customer_id)
         if customer:
             response.customer = Customer.from_orm(customer)
 
     if work_order.vehicle_id:
-        vehicle = VehicleRepository.get_by_id(db, work_order.vehicle_id)
+        vehicle = VehicleRepository.get_by_id(db, current_user.id, work_order.vehicle_id)
         if vehicle:
             response.vehicle = Vehicle.from_orm(vehicle)
 
@@ -545,29 +540,38 @@ async def get_work_order(order_id: str, db: Session = Depends(get_db)):
 
 
 @router.get("/work-orders", response_model=List[WorkOrder])
-async def list_work_orders(db: Session = Depends(get_db)):
+async def list_work_orders(
+    db: Session = Depends(get_db),
+    current_user: UserDB = Depends(get_current_user),
+):
     """List all work orders"""
-    return WorkOrderRepository.get_all(db)
+    return WorkOrderRepository.get_all(db, current_user.id)
 
 
 @router.get("/customers/{customer_id}/work-orders", response_model=List[WorkOrder])
-async def get_customer_work_orders(customer_id: str, db: Session = Depends(get_db)):
+async def get_customer_work_orders(
+    customer_id: str,
+    db: Session = Depends(get_db),
+    current_user: UserDB = Depends(get_current_user),
+):
     """Get all work orders for a customer"""
-    # Verify customer exists
-    customer = CustomerRepository.get_by_id(db, customer_id)
+    customer = CustomerRepository.get_by_id(db, current_user.id, customer_id)
     if not customer:
         raise HTTPException(status_code=404, detail="Customer not found")
 
-    return WorkOrderRepository.get_by_customer(db, customer_id)
+    return WorkOrderRepository.get_by_customer(db, current_user.id, customer_id)
 
 
 @router.put("/work-orders/{order_id}", response_model=WorkOrder)
 async def update_work_order(
-    order_id: str, work_order: WorkOrderUpdate, db: Session = Depends(get_db)
+    order_id: str,
+    work_order: WorkOrderUpdate,
+    db: Session = Depends(get_db),
+    current_user: UserDB = Depends(get_current_user),
 ):
     """Update a work order"""
     updated_work_order = WorkOrderRepository.update(
-        db, order_id, work_order.dict(exclude_unset=True)
+        db, current_user.id, order_id, work_order.dict(exclude_unset=True)
     )
     if not updated_work_order:
         raise HTTPException(status_code=404, detail="Work order not found")
@@ -575,9 +579,13 @@ async def update_work_order(
 
 
 @router.delete("/work-orders/{order_id}")
-async def delete_work_order(order_id: str, db: Session = Depends(get_db)):
+async def delete_work_order(
+    order_id: str,
+    db: Session = Depends(get_db),
+    current_user: UserDB = Depends(get_current_user),
+):
     """Delete a work order"""
-    result = WorkOrderRepository.delete(db, order_id)
+    result = WorkOrderRepository.delete(db, current_user.id, order_id)
     if not result:
         raise HTTPException(status_code=404, detail="Work order not found")
     return {"message": "Work order deleted"}

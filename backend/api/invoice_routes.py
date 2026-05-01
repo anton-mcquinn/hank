@@ -8,17 +8,16 @@ import os
 from pathlib import Path
 
 from api.auth_dependencies import get_current_user
-from database.db import get_db
+from database.db import UserDB, get_db
 from database.repos import WorkOrderRepository, CustomerRepository, VehicleRepository, ShopSettingsRepository
 from services.invoice_generator_html import (
     generate_invoice_html,
     generate_pdf_with_reportlab,
 )
-# from services.email_service import send_email_with_attachment
 
 logger = logging.getLogger(__name__)
 
-router = APIRouter(dependencies=[Depends(get_current_user)])
+router = APIRouter()
 
 
 class EmailRequest(BaseModel):
@@ -35,36 +34,22 @@ async def generate_invoice(
     request: EmailRequest,
     background_tasks: BackgroundTasks = None,
     db: Session = Depends(get_db),
+    current_user: UserDB = Depends(get_current_user),
 ):
-    """
-    Generate an invoice using HTML template and ReportLab for PDF
-
-    Args:
-        order_id: Work order ID
-        request: Email and format options
-        background_tasks: FastAPI background tasks
-        db: Database session
-
-    Returns:
-        dict: Response with HTML content and file paths if applicable
-    """
-    # Get work order
-    work_order = WorkOrderRepository.get_by_id(db, order_id)
+    work_order = WorkOrderRepository.get_by_id(db, current_user.id, order_id)
     if not work_order:
         raise HTTPException(status_code=404, detail="Work order not found")
 
-    # Get customer and vehicle if available
     customer = None
     if work_order.customer_id:
-        customer = CustomerRepository.get_by_id(db, work_order.customer_id)
+        customer = CustomerRepository.get_by_id(db, current_user.id, work_order.customer_id)
 
     vehicle = None
     if work_order.vehicle_id:
-        vehicle = VehicleRepository.get_by_id(db, work_order.vehicle_id)
+        vehicle = VehicleRepository.get_by_id(db, current_user.id, work_order.vehicle_id)
 
-    shop = ShopSettingsRepository.get(db)
+    shop = ShopSettingsRepository.get(db, current_user.id)
 
-    # Generate HTML invoice using template
     html_content, html_path, template_data = await generate_invoice_html(
         work_order, customer, vehicle, is_estimate=False, shop_settings=shop
     )
@@ -72,12 +57,10 @@ async def generate_invoice(
     if not html_content:
         raise HTTPException(status_code=500, detail="Failed to generate invoice")
 
-    # Update work order status
-    WorkOrderRepository.update(db, order_id, {"status": "invoiced"})
+    WorkOrderRepository.update(db, current_user.id, order_id, {"status": "invoiced"})
 
     result = {"status": "success", "html_content": html_content, "html_path": html_path}
 
-    # Generate PDF if requested
     pdf_path = None
     if request.generate_pdf:
         logger.info("Generating PDF for order %s", order_id)
@@ -98,36 +81,22 @@ async def generate_estimate(
     request: EmailRequest,
     background_tasks: BackgroundTasks = None,
     db: Session = Depends(get_db),
+    current_user: UserDB = Depends(get_current_user),
 ):
-    """
-    Generate an estimate using HTML template and ReportLab for PDF
-
-    Args:
-        order_id: Work order ID
-        request: Email and format options
-        background_tasks: FastAPI background tasks
-        db: Database session
-
-    Returns:
-        dict: Response with HTML content and file paths if applicable
-    """
-    # Get work order
-    work_order = WorkOrderRepository.get_by_id(db, order_id)
+    work_order = WorkOrderRepository.get_by_id(db, current_user.id, order_id)
     if not work_order:
         raise HTTPException(status_code=404, detail="Work order not found")
 
-    # Get customer and vehicle if available
     customer = None
     if work_order.customer_id:
-        customer = CustomerRepository.get_by_id(db, work_order.customer_id)
+        customer = CustomerRepository.get_by_id(db, current_user.id, work_order.customer_id)
 
     vehicle = None
     if work_order.vehicle_id:
-        vehicle = VehicleRepository.get_by_id(db, work_order.vehicle_id)
+        vehicle = VehicleRepository.get_by_id(db, current_user.id, work_order.vehicle_id)
 
-    shop = ShopSettingsRepository.get(db)
+    shop = ShopSettingsRepository.get(db, current_user.id)
 
-    # Generate HTML estimate using template
     html_content, html_path, template_data = await generate_invoice_html(
         work_order, customer, vehicle, is_estimate=True, shop_settings=shop
     )
@@ -135,12 +104,10 @@ async def generate_estimate(
     if not html_content:
         raise HTTPException(status_code=500, detail="Failed to generate estimate")
 
-    # Update work order status
-    WorkOrderRepository.update(db, order_id, {"status": "estimated"})
+    WorkOrderRepository.update(db, current_user.id, order_id, {"status": "estimated"})
 
     result = {"status": "success", "html_content": html_content, "html_path": html_path}
 
-    # Generate PDF if requested
     pdf_path = None
     if request.generate_pdf:
         logger.info("Generating PDF estimate for order %s", order_id)
@@ -156,11 +123,13 @@ async def generate_estimate(
 
 
 @router.get("/invoices/{filename}")
-async def get_invoice_pdf(filename: str):
+async def get_invoice_pdf(
+    filename: str,
+    current_user: UserDB = Depends(get_current_user),
+):
     invoice_dir = Path(os.getenv("INVOICE_DIR", "invoices")).resolve()
     file_path = (invoice_dir / filename).resolve()
 
-    # Prevent path traversal — ensure resolved path stays within invoice directory
     if not file_path.is_relative_to(invoice_dir):
         raise HTTPException(status_code=400, detail="Invalid filename")
 

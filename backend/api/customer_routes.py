@@ -11,7 +11,7 @@ from sqlalchemy.orm import Session
 
 from api.models import Customer, CustomerCreate, CustomerUpdate, CustomerBase
 from api.auth_dependencies import get_current_user
-from database.db import get_db
+from database.db import UserDB, get_db
 from database.repos import CustomerRepository, VehicleRepository
 
 logger = logging.getLogger(__name__)
@@ -42,12 +42,13 @@ async def _save_customer_image(upload: UploadFile) -> str:
 
     return str(file_path)
 
-router = APIRouter(dependencies=[Depends(get_current_user)])
+router = APIRouter()
 
 
 @router.post("/extract-customer-info", response_model=CustomerBase)
 async def extract_customer_info(
     customer_image: UploadFile = File(None),
+    current_user: UserDB = Depends(get_current_user),
 ):
     """Extract customer info from an image without creating the customer"""
     try:
@@ -84,8 +85,12 @@ async def extract_customer_info(
 
 
 @router.post("/customers", response_model=Customer)
-async def create_customer(customer: CustomerCreate, db: Session = Depends(get_db)):
-    existing = CustomerRepository.get_by_email(db, customer.email)
+async def create_customer(
+    customer: CustomerCreate,
+    db: Session = Depends(get_db),
+    current_user: UserDB = Depends(get_current_user),
+):
+    existing = CustomerRepository.get_by_email(db, current_user.id, customer.email)
     if existing:
         raise HTTPException(
             status_code=400, detail="Customer with this email already exists"
@@ -96,13 +101,14 @@ async def create_customer(customer: CustomerCreate, db: Session = Depends(get_db
     customer_data["created_at"] = datetime.now()
     customer_data["updated_at"] = datetime.now()
 
-    return CustomerRepository.create(db, customer_data)
+    return CustomerRepository.create(db, current_user.id, customer_data)
 
 
 @router.post("/customers-image", response_model=Customer)
 async def create_customer_image(
     customer_image: UploadFile = File(None),
     db: Session = Depends(get_db),
+    current_user: UserDB = Depends(get_current_user),
 ):
     """Create a customer from an image"""
     try:
@@ -120,7 +126,6 @@ async def create_customer_image(
                 detail="Could not extract customer information from image",
             )
 
-        # Create customer data
         customer_data = {
             "id": str(uuid.uuid4()),
             "first_name": customer_info.get("first_name", ""),
@@ -132,16 +137,16 @@ async def create_customer_image(
             "updated_at": datetime.now(),
         }
 
-        # Check if email exists and is valid
         if customer_data["email"]:
-            existing = CustomerRepository.get_by_email(db, customer_data["email"])
+            existing = CustomerRepository.get_by_email(
+                db, current_user.id, customer_data["email"]
+            )
             if existing:
                 raise HTTPException(
                     status_code=400, detail="Customer with this email already exists"
                 )
 
-        # Create the customer
-        return CustomerRepository.create(db, customer_data)
+        return CustomerRepository.create(db, current_user.id, customer_data)
 
     except HTTPException:
         raise
@@ -153,27 +158,37 @@ async def create_customer_image(
 
 
 @router.get("/customers/{customer_id}", response_model=Customer)
-async def get_customer(customer_id: str, db: Session = Depends(get_db)):
+async def get_customer(
+    customer_id: str,
+    db: Session = Depends(get_db),
+    current_user: UserDB = Depends(get_current_user),
+):
     """Get a customer by ID"""
-    customer = CustomerRepository.get_by_id(db, customer_id)
+    customer = CustomerRepository.get_by_id(db, current_user.id, customer_id)
     if not customer:
         raise HTTPException(status_code=404, detail="Customer not found")
     return customer
 
 
 @router.get("/customers", response_model=List[Customer])
-async def list_customers(db: Session = Depends(get_db)):
+async def list_customers(
+    db: Session = Depends(get_db),
+    current_user: UserDB = Depends(get_current_user),
+):
     """List all customers"""
-    return CustomerRepository.get_all(db)
+    return CustomerRepository.get_all(db, current_user.id)
 
 
 @router.put("/customers/{customer_id}", response_model=Customer)
 async def update_customer(
-    customer_id: str, customer: CustomerUpdate, db: Session = Depends(get_db)
+    customer_id: str,
+    customer: CustomerUpdate,
+    db: Session = Depends(get_db),
+    current_user: UserDB = Depends(get_current_user),
 ):
     """Update a customer"""
     updated_customer = CustomerRepository.update(
-        db, customer_id, customer.dict(exclude_unset=True)
+        db, current_user.id, customer_id, customer.dict(exclude_unset=True)
     )
     if not updated_customer:
         raise HTTPException(status_code=404, detail="Customer not found")
@@ -181,9 +196,13 @@ async def update_customer(
 
 
 @router.delete("/customers/{customer_id}")
-async def delete_customer(customer_id: str, db: Session = Depends(get_db)):
+async def delete_customer(
+    customer_id: str,
+    db: Session = Depends(get_db),
+    current_user: UserDB = Depends(get_current_user),
+):
     """Delete a customer"""
-    result = CustomerRepository.delete(db, customer_id)
+    result = CustomerRepository.delete(db, current_user.id, customer_id)
     if not result:
         raise HTTPException(status_code=404, detail="Customer not found")
     return {"message": "Customer deleted"}

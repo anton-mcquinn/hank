@@ -44,6 +44,7 @@ class CustomerDB(Base):
     __tablename__ = "customers"
 
     id = Column(String, primary_key=True, index=True)
+    user_id = Column(String, ForeignKey("users.id"), nullable=False, index=True)
     first_name = Column(String, nullable=False)
     last_name = Column(String, nullable=False)
     email = Column(String, nullable=False)
@@ -58,6 +59,7 @@ class VehicleDB(Base):
     __tablename__ = "vehicles"
 
     id = Column(String, primary_key=True, index=True)
+    user_id = Column(String, ForeignKey("users.id"), nullable=False, index=True)
     customer_id = Column(String, ForeignKey("customers.id"), index=True)
     vin = Column(String, index=True, nullable=True)
     plate = Column(String, nullable=True)
@@ -75,6 +77,7 @@ class WorkOrderDB(Base):
     __tablename__ = "work_orders"
 
     id = Column(String, primary_key=True, index=True)
+    user_id = Column(String, ForeignKey("users.id"), nullable=False, index=True)
     customer_id = Column(String, ForeignKey("customers.id"), nullable=True, index=True)
     customer_name = Column(String, nullable=True)
     vehicle_id = Column(String, ForeignKey("vehicles.id"), nullable=True, index=True)
@@ -93,7 +96,7 @@ class WorkOrderDB(Base):
 class ShopSettingsDB(Base):
     __tablename__ = "shop_settings"
 
-    id = Column(Integer, primary_key=True, default=1)
+    user_id = Column(String, ForeignKey("users.id"), primary_key=True)
     name = Column(String, default="")
     address = Column(String, default="")
     phone = Column(String, default="")

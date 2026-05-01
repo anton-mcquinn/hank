@@ -29,11 +29,9 @@ class UserRepository:
         if not user:
             return None
 
-        # Update fields
         for key, value in user_data.items():
             setattr(user, key, value)
 
-        # Always update the updated_at timestamp
         user.updated_at = datetime.now()
 
         db.commit()
@@ -69,9 +67,10 @@ class UserRepository:
 
 class CustomerRepository:
     @staticmethod
-    def create(db: Session, customer_data: Dict[str, Any]) -> CustomerDB:
+    def create(db: Session, user_id: str, customer_data: Dict[str, Any]) -> CustomerDB:
         if "id" not in customer_data:
             customer_data["id"] = str(uuid.uuid4())
+        customer_data["user_id"] = user_id
 
         customer_db = CustomerDB(**customer_data)
         db.add(customer_db)
@@ -81,17 +80,21 @@ class CustomerRepository:
 
     @staticmethod
     def update(
-        db: Session, customer_id: str, customer_data: Dict[str, Any]
+        db: Session, user_id: str, customer_id: str, customer_data: Dict[str, Any]
     ) -> Optional[CustomerDB]:
-        customer = db.query(CustomerDB).filter(CustomerDB.id == customer_id).first()
+        customer = (
+            db.query(CustomerDB)
+            .filter(CustomerDB.id == customer_id, CustomerDB.user_id == user_id)
+            .first()
+        )
         if not customer:
             return None
 
-        # Update fields
         for key, value in customer_data.items():
+            if key == "user_id":
+                continue
             setattr(customer, key, value)
 
-        # Always update the updated_at timestamp
         customer.updated_at = datetime.now()
 
         db.commit()
@@ -99,8 +102,12 @@ class CustomerRepository:
         return customer
 
     @staticmethod
-    def delete(db: Session, customer_id: str) -> bool:
-        customer = db.query(CustomerDB).filter(CustomerDB.id == customer_id).first()
+    def delete(db: Session, user_id: str, customer_id: str) -> bool:
+        customer = (
+            db.query(CustomerDB)
+            .filter(CustomerDB.id == customer_id, CustomerDB.user_id == user_id)
+            .first()
+        )
         if not customer:
             return False
 
@@ -109,27 +116,40 @@ class CustomerRepository:
         return True
 
     @staticmethod
-    def get_by_id(db: Session, customer_id: str) -> Optional[CustomerDB]:
-        return db.query(CustomerDB).filter(CustomerDB.id == customer_id).first()
+    def get_by_id(db: Session, user_id: str, customer_id: str) -> Optional[CustomerDB]:
+        return (
+            db.query(CustomerDB)
+            .filter(CustomerDB.id == customer_id, CustomerDB.user_id == user_id)
+            .first()
+        )
 
     @staticmethod
-    def get_by_phone(db: Session, phone: str) -> Optional[CustomerDB]:
-        return db.query(CustomerDB).filter(CustomerDB.phone == phone).first()
+    def get_by_phone(db: Session, user_id: str, phone: str) -> Optional[CustomerDB]:
+        return (
+            db.query(CustomerDB)
+            .filter(CustomerDB.phone == phone, CustomerDB.user_id == user_id)
+            .first()
+        )
 
     @staticmethod
-    def get_by_email(db: Session, email: str) -> Optional[CustomerDB]:
-        return db.query(CustomerDB).filter(CustomerDB.email == email).first()
+    def get_by_email(db: Session, user_id: str, email: str) -> Optional[CustomerDB]:
+        return (
+            db.query(CustomerDB)
+            .filter(CustomerDB.email == email, CustomerDB.user_id == user_id)
+            .first()
+        )
 
     @staticmethod
-    def get_all(db: Session) -> List[CustomerDB]:
-        return db.query(CustomerDB).all()
+    def get_all(db: Session, user_id: str) -> List[CustomerDB]:
+        return db.query(CustomerDB).filter(CustomerDB.user_id == user_id).all()
 
 
 class VehicleRepository:
     @staticmethod
-    def create(db: Session, vehicle_data: Dict[str, Any]) -> VehicleDB:
+    def create(db: Session, user_id: str, vehicle_data: Dict[str, Any]) -> VehicleDB:
         if "id" not in vehicle_data:
             vehicle_data["id"] = str(uuid.uuid4())
+        vehicle_data["user_id"] = user_id
 
         vehicle_db = VehicleDB(**vehicle_data)
         db.add(vehicle_db)
@@ -137,7 +157,11 @@ class VehicleRepository:
         db.refresh(vehicle_db)
         customer_id = vehicle_data.get("customer_id")
         if customer_id:
-            customer = db.query(CustomerDB).filter(CustomerDB.id == customer_id).first()
+            customer = (
+                db.query(CustomerDB)
+                .filter(CustomerDB.id == customer_id, CustomerDB.user_id == user_id)
+                .first()
+            )
             if customer:
                 vehicles = customer.vehicles or []
                 if vehicle_db.id not in vehicles:
@@ -150,17 +174,21 @@ class VehicleRepository:
 
     @staticmethod
     def update(
-        db: Session, vehicle_id: str, vehicle_data: Dict[str, Any]
+        db: Session, user_id: str, vehicle_id: str, vehicle_data: Dict[str, Any]
     ) -> Optional[VehicleDB]:
-        vehicle = db.query(VehicleDB).filter(VehicleDB.id == vehicle_id).first()
+        vehicle = (
+            db.query(VehicleDB)
+            .filter(VehicleDB.id == vehicle_id, VehicleDB.user_id == user_id)
+            .first()
+        )
         if not vehicle:
             return None
 
-        # Update fields
         for key, value in vehicle_data.items():
+            if key == "user_id":
+                continue
             setattr(vehicle, key, value)
 
-        # Always update the updated_at timestamp
         vehicle.updated_at = datetime.now()
 
         db.commit()
@@ -168,8 +196,12 @@ class VehicleRepository:
         return vehicle
 
     @staticmethod
-    def delete(db: Session, vehicle_id: str) -> bool:
-        vehicle = db.query(VehicleDB).filter(VehicleDB.id == vehicle_id).first()
+    def delete(db: Session, user_id: str, vehicle_id: str) -> bool:
+        vehicle = (
+            db.query(VehicleDB)
+            .filter(VehicleDB.id == vehicle_id, VehicleDB.user_id == user_id)
+            .first()
+        )
         if not vehicle:
             return False
 
@@ -178,39 +210,57 @@ class VehicleRepository:
         return True
 
     @staticmethod
-    def get_by_id(db: Session, vehicle_id: str) -> Optional[VehicleDB]:
-        return db.query(VehicleDB).filter(VehicleDB.id == vehicle_id).first()
+    def get_by_id(db: Session, user_id: str, vehicle_id: str) -> Optional[VehicleDB]:
+        return (
+            db.query(VehicleDB)
+            .filter(VehicleDB.id == vehicle_id, VehicleDB.user_id == user_id)
+            .first()
+        )
 
     @staticmethod
-    def get_by_vin(db: Session, vin: str) -> Optional[VehicleDB]:
-        return db.query(VehicleDB).filter(VehicleDB.vin == vin).first()
+    def get_by_vin(db: Session, user_id: str, vin: str) -> Optional[VehicleDB]:
+        return (
+            db.query(VehicleDB)
+            .filter(VehicleDB.vin == vin, VehicleDB.user_id == user_id)
+            .first()
+        )
 
     @staticmethod
-    def get_by_customer(db: Session, customer_id: str) -> List[VehicleDB]:
-        return db.query(VehicleDB).filter(VehicleDB.customer_id == customer_id).all()
+    def get_by_customer(db: Session, user_id: str, customer_id: str) -> List[VehicleDB]:
+        return (
+            db.query(VehicleDB)
+            .filter(
+                VehicleDB.customer_id == customer_id, VehicleDB.user_id == user_id
+            )
+            .all()
+        )
 
     @staticmethod
-    def get_all(db: Session) -> List[VehicleDB]:
-        return db.query(VehicleDB).all()
+    def get_all(db: Session, user_id: str) -> List[VehicleDB]:
+        return db.query(VehicleDB).filter(VehicleDB.user_id == user_id).all()
 
 
 class ShopSettingsRepository:
-    SINGLETON_ID = 1
-
     @staticmethod
-    def get(db: Session) -> ShopSettingsDB:
-        row = db.query(ShopSettingsDB).filter(ShopSettingsDB.id == ShopSettingsRepository.SINGLETON_ID).first()
+    def get(db: Session, user_id: str) -> ShopSettingsDB:
+        row = (
+            db.query(ShopSettingsDB)
+            .filter(ShopSettingsDB.user_id == user_id)
+            .first()
+        )
         if not row:
-            row = ShopSettingsDB(id=ShopSettingsRepository.SINGLETON_ID)
+            row = ShopSettingsDB(user_id=user_id)
             db.add(row)
             db.commit()
             db.refresh(row)
         return row
 
     @staticmethod
-    def update(db: Session, data: Dict[str, Any]) -> ShopSettingsDB:
-        row = ShopSettingsRepository.get(db)
+    def update(db: Session, user_id: str, data: Dict[str, Any]) -> ShopSettingsDB:
+        row = ShopSettingsRepository.get(db, user_id)
         for key, value in data.items():
+            if key == "user_id":
+                continue
             setattr(row, key, value)
         row.updated_at = datetime.now()
         db.commit()
@@ -220,7 +270,8 @@ class ShopSettingsRepository:
 
 class WorkOrderRepository:
     @staticmethod
-    def create(db, work_order_data):
+    def create(db, user_id: str, work_order_data):
+        work_order_data["user_id"] = user_id
         work_order_db = WorkOrderDB(**work_order_data)
         logger.info("Creating work order: %s", work_order_data.get("id"))
         db.add(work_order_db)
@@ -229,17 +280,21 @@ class WorkOrderRepository:
         return work_order_db
 
     @staticmethod
-    def update(db, order_id, work_order_data):
-        work_order = db.query(WorkOrderDB).filter(WorkOrderDB.id == order_id).first()
+    def update(db, user_id: str, order_id, work_order_data):
+        work_order = (
+            db.query(WorkOrderDB)
+            .filter(WorkOrderDB.id == order_id, WorkOrderDB.user_id == user_id)
+            .first()
+        )
         if not work_order:
             return None
 
-        # Update fields
         logger.info("Updating work order: %s", order_id)
         for key, value in work_order_data.items():
+            if key == "user_id":
+                continue
             setattr(work_order, key, value)
 
-        # Always update the updated_at timestamp
         work_order.updated_at = datetime.now()
 
         db.commit()
@@ -247,8 +302,12 @@ class WorkOrderRepository:
         return work_order
 
     @staticmethod
-    def delete(db, order_id):
-        work_order = db.query(WorkOrderDB).filter(WorkOrderDB.id == order_id).first()
+    def delete(db, user_id: str, order_id):
+        work_order = (
+            db.query(WorkOrderDB)
+            .filter(WorkOrderDB.id == order_id, WorkOrderDB.user_id == user_id)
+            .first()
+        )
         if not work_order:
             return False
 
@@ -257,15 +316,24 @@ class WorkOrderRepository:
         return True
 
     @staticmethod
-    def get_by_id(db, order_id):
-        return db.query(WorkOrderDB).filter(WorkOrderDB.id == order_id).first()
-
-    @staticmethod
-    def get_by_customer(db, customer_id):
+    def get_by_id(db, user_id: str, order_id):
         return (
-            db.query(WorkOrderDB).filter(WorkOrderDB.customer_id == customer_id).all()
+            db.query(WorkOrderDB)
+            .filter(WorkOrderDB.id == order_id, WorkOrderDB.user_id == user_id)
+            .first()
         )
 
     @staticmethod
-    def get_all(db):
-        return db.query(WorkOrderDB).all()
+    def get_by_customer(db, user_id: str, customer_id):
+        return (
+            db.query(WorkOrderDB)
+            .filter(
+                WorkOrderDB.customer_id == customer_id,
+                WorkOrderDB.user_id == user_id,
+            )
+            .all()
+        )
+
+    @staticmethod
+    def get_all(db, user_id: str):
+        return db.query(WorkOrderDB).filter(WorkOrderDB.user_id == user_id).all()
