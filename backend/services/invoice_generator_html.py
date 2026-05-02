@@ -23,9 +23,12 @@ from reportlab.lib.units import inch
 
 load_dotenv()
 
+# Resolve paths relative to the backend/ package, not the process cwd
+_BACKEND_DIR = Path(__file__).resolve().parent.parent
+
 # Configuration from environment variables
-INVOICE_DIR = os.getenv("INVOICE_DIR", "./invoices")
-TEMPLATE_DIR = os.getenv("TEMPLATE_DIR", "./backend/templates")
+INVOICE_DIR = os.getenv("INVOICE_DIR", str(_BACKEND_DIR / "invoices"))
+TEMPLATE_DIR = os.getenv("TEMPLATE_DIR", str(_BACKEND_DIR / "templates"))
 # Env var fallbacks (used when no DB shop settings exist yet)
 _ENV_COMPANY_NAME = os.getenv("COMPANY_NAME", "Auto Shop")
 _ENV_COMPANY_ADDRESS = os.getenv("COMPANY_ADDRESS", "123 Main St, Anytown, USA")
