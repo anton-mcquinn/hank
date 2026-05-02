@@ -1,9 +1,9 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { 
-  Modal, 
-  View, 
-  StyleSheet, 
-  TouchableOpacity, 
+import {
+  Modal,
+  View,
+  StyleSheet,
+  TouchableOpacity,
   ActivityIndicator,
   Platform,
   Alert,
@@ -12,6 +12,7 @@ import {
 import { WebView } from 'react-native-webview';
 import * as FileSystem from 'expo-file-system';
 import * as Sharing from 'expo-sharing';
+import * as SecureStore from 'expo-secure-store';
 import { FontAwesome, MaterialIcons } from '@expo/vector-icons';
 
 import ThemedText from './ThemedText';
@@ -35,7 +36,26 @@ export default function PDFViewer({
   const [loading, setLoading] = useState(true);
   const [downloading, setDownloading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [authToken, setAuthToken] = useState<string | null>(null);
+  const [tokenReady, setTokenReady] = useState(false);
   const webViewRef = useRef(null);
+
+  useEffect(() => {
+    if (!visible) {
+      setTokenReady(false);
+      return;
+    }
+    SecureStore.getItemAsync('userToken')
+      .then((token) => {
+        setAuthToken(token);
+        setTokenReady(true);
+      })
+      .catch((err) => {
+        console.error('Error loading auth token for PDFViewer:', err);
+        setAuthToken(null);
+        setTokenReady(true);
+      });
+  }, [visible]);
   
   // Add a force timeout to hide the spinner after a set time
   useEffect(() => {
@@ -89,8 +109,15 @@ export default function PDFViewer({
       // Download the file
       const downloadPath = downloadDirectory + filename;
       console.log('Downloading to:', downloadPath);
-      
-      const downloadResult = await FileSystem.downloadAsync(fullUrl, downloadPath);
+
+      const downloadOptions = authToken
+        ? { headers: { Authorization: `Bearer ${authToken}` } }
+        : undefined;
+      const downloadResult = await FileSystem.downloadAsync(
+        fullUrl,
+        downloadPath,
+        downloadOptions
+      );
       console.log('Download result:', downloadResult);
 
       if (downloadResult.status === 200) {
@@ -286,9 +313,15 @@ export default function PDFViewer({
               </View>
             )}
             
+            {tokenReady && (
             <WebView
               ref={webViewRef}
-              source={{ uri: getSourceUrl() }}
+              source={{
+                uri: getSourceUrl(),
+                headers: authToken
+                  ? { Authorization: `Bearer ${authToken}` }
+                  : undefined,
+              }}
               style={styles.webView}
               onLoadEnd={() => {
                 console.log('WebView onLoadEnd fired');
@@ -327,6 +360,7 @@ export default function PDFViewer({
               scalesPageToFit={Platform.OS === 'android'}
               useWebKit={true}
             />
+            )}
           </View>
         )}
       </SafeAreaView>
