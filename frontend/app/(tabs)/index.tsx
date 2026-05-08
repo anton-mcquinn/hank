@@ -7,7 +7,7 @@ import {
   TouchableOpacity,
   RefreshControl,
 } from "react-native";
-import { router, useFocusEffect } from "expo-router";
+import { router, useFocusEffect, useNavigation } from "expo-router";
 import { FontAwesome5 } from '@expo/vector-icons';
 
 import ThemedText from "../components/ThemedText";
@@ -21,6 +21,7 @@ import { AuthContext } from "../context/AuthContext";
 export default function Index() {
   const colorScheme = useColorScheme() ?? 'light';
   const { userToken } = useContext(AuthContext);
+  const navigation = useNavigation();
   const [workorders, setWorkorders] = useState<WorkOrder[]>([]);
   const [customers, setCustomers] = useState<Customer[]>([]);
   const [loading, setLoading] = useState(true);
@@ -32,6 +33,7 @@ export default function Index() {
     invoicedAmount: 0,
   });
   const [error, setError] = useState<string | null>(null);
+  const [shopName, setShopName] = useState<string | null>(null);
   
   // Get current date for display
   const currentDate = new Date();
@@ -41,6 +43,12 @@ export default function Index() {
     month: 'long',
     day: 'numeric'
   });
+
+  useEffect(() => {
+    if (shopName) {
+      navigation.setOptions({ headerTitle: shopName });
+    }
+  }, [shopName]);
 
   // Load data when component mounts (only when authenticated)
   useFocusEffect(
@@ -61,10 +69,16 @@ export default function Index() {
     setError(null);
     
     try {
+      // Load shop settings for header title
+      const shopData = await api.shop.getSettings();
+      if (shopData?.name) {
+        setShopName(shopData.name);
+      }
+
       // Load work orders
       const workOrderData = await api.workorders.getAll();
       setWorkorders(workOrderData);
-      
+
       // Load customers
       const customerData = await api.customers.getAll();
       setCustomers(customerData);

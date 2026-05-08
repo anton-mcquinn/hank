@@ -166,6 +166,7 @@ class WorkOrderUpdate(BaseModel):
 
 class WorkOrder(WorkOrderBase):
     id: str
+    work_order_number: Optional[int] = None
     created_at: datetime
     updated_at: datetime
 

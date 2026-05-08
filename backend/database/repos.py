@@ -2,6 +2,7 @@ import logging
 from datetime import datetime
 import uuid
 from sqlalchemy.orm import Session
+from sqlalchemy import func
 from typing import Dict, Any, List, Optional
 
 logger = logging.getLogger(__name__)
@@ -272,6 +273,8 @@ class WorkOrderRepository:
     @staticmethod
     def create(db, user_id: str, work_order_data):
         work_order_data["user_id"] = user_id
+        max_num = db.query(func.max(WorkOrderDB.work_order_number)).scalar() or 0
+        work_order_data["work_order_number"] = max_num + 1
         work_order_db = WorkOrderDB(**work_order_data)
         logger.info("Creating work order: %s", work_order_data.get("id"))
         db.add(work_order_db)

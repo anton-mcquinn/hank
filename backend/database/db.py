@@ -77,6 +77,7 @@ class WorkOrderDB(Base):
     __tablename__ = "work_orders"
 
     id = Column(String, primary_key=True, index=True)
+    work_order_number = Column(Integer, nullable=True, index=True)
     user_id = Column(String, ForeignKey("users.id"), nullable=False, index=True)
     customer_id = Column(String, ForeignKey("customers.id"), nullable=True, index=True)
     customer_name = Column(String, nullable=True)

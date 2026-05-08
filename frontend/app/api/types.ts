@@ -77,6 +77,7 @@ export interface LineItem {
 // Work Order types
 export interface WorkOrder {
   id: string;
+  work_order_number?: number;
   customer_id?: string;
   vehicle_id?: string;
   vehicle_info: Record<string, any>;
