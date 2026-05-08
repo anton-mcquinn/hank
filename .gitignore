@@ -5,3 +5,12 @@ backend/freshvenv/
 backend/invoices/
 **/__pycache__/
 *.pyc
+
+# venv at repo root
+venv/
+
+# macOS
+.DS_Store
+
+# audio/test recordings
+*.m4a
