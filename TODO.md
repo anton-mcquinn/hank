@@ -24,6 +24,7 @@ Running list of things to tackle. Detailed plans live in the `*-brainstorm.md` d
 - [ ] **Upgrade web auth from bearer-in-localStorage to access-in-memory + refresh-in-httpOnly-cookie.** Trigger: app starts handling anything more sensitive than invoice data (payment info, SSNs, etc.).
 - [ ] **Per-shop sending domain for email.** Trigger: a shop explicitly asks to have invoices come from their own domain instead of `hank.idleworkshop.com`.
 - [ ] **Custom domain for web app** (e.g. `app.hank.idleworkshop.com`). Trigger: web app moves past internal testing and gets shared with real shops.
+- [ ] **Sequential work order numbers** ("WO #47" instead of "#ab12cd34"). Trigger: referring to WOs by UUID prefix becomes painful (phone calls, printed invoices). When picking this up: scope the sequence per-shop (filter `max()` by `user_id`, not global), plan a backfill via `ROW_NUMBER() OVER (PARTITION BY user_id ORDER BY created_at)`, decide on format (`#47` vs `2026-047` with yearly reset), and surface the number on invoice PDFs. Branch `claude/improve-topbar-display-dU4Cu` has a first cut to reference — global scope, no migration, don't merge as-is.
 
 ## Cleanups / small stuff
 
