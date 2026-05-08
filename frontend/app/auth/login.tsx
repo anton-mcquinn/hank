@@ -28,18 +28,22 @@ export default function LoginScreen() {
         <ThemedText style={styles.errorText}>{errorMessage}</ThemedText>
       )}
       
+      <ThemedText style={styles.label}>Username or Email</ThemedText>
       <TextInput
         style={styles.input}
         placeholder="Username or Email"
+        placeholderTextColor="#999"
         value={username}
         onChangeText={setUsername}
         autoCapitalize="none"
         editable={!isLoading}
       />
-      
+
+      <ThemedText style={styles.label}>Password</ThemedText>
       <TextInput
         style={styles.input}
         placeholder="Password"
+        placeholderTextColor="#999"
         value={password}
         onChangeText={setPassword}
         secureTextEntry
@@ -82,8 +86,13 @@ const styles = StyleSheet.create({
     marginBottom: 24,
     textAlign: 'center',
   },
+  label: {
+    marginBottom: 4,
+    fontWeight: '500',
+  },
   input: {
     backgroundColor: '#f5f5f5',
+    color: '#000',
     padding: 12,
     borderRadius: 8,
     marginBottom: 16,
