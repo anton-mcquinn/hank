@@ -118,34 +118,6 @@ export default function More() {
           </TouchableOpacity>
         </ThemedView>
 
-        {/* HELP & SUPPORT SECTION */}
-        <ThemedView style={styles.section}>
-          <ThemedText type="subtitle">Help & Support</ThemedText>
-          
-          <TouchableOpacity 
-            style={styles.menuItem}
-            lightColor="#ffffff"
-            darkColor="#333333"
-            onPress={() => Alert.alert("Coming Soon", "User guide will be available in a future update.")}
-          >
-            <View style={styles.menuItemContent}>
-              <View style={styles.menuItemIcon}>
-                <FontAwesome5 
-                  name="book" 
-                  size={20} 
-                  color={colorScheme === 'dark' ? Colors.dark.icon : Colors.light.icon} 
-                />
-              </View>
-              <ThemedText>User Guide</ThemedText>
-            </View>
-            <MaterialIcons 
-              name="chevron-right" 
-              size={24} 
-              color={colorScheme === 'dark' ? Colors.dark.icon : Colors.light.icon} 
-            />
-          </TouchableOpacity>
-        </ThemedView>
-        
         {/* ABOUT SECTION */}
         <ThemedView style={styles.section}>
           <ThemedText type="subtitle">About</ThemedText>

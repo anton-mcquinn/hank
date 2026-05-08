@@ -1,15 +1,17 @@
 // frontend/app/vehicles/edit/[id].tsx
 import React, { useEffect, useState } from "react";
-import { 
-  StyleSheet, 
-  TextInput, 
-  TouchableOpacity, 
-  ScrollView, 
-  Alert, 
-  View, 
+import {
+  StyleSheet,
+  TextInput,
+  TouchableOpacity,
+  ScrollView,
+  Alert,
+  View,
   ActivityIndicator,
-  KeyboardAvoidingView, 
-  Platform 
+  KeyboardAvoidingView,
+  Platform,
+  Pressable,
+  Keyboard,
 } from "react-native";
 import { useLocalSearchParams, Stack, router } from "expo-router";
 import { MaterialIcons } from '@expo/vector-icons';
@@ -237,7 +239,12 @@ export default function EditVehicleScreen() {
         }} 
       />
       
-      <ScrollView contentContainerStyle={styles.scrollContent}>
+      <Pressable style={styles.container} onPress={Keyboard.dismiss}>
+      <ScrollView
+        contentContainerStyle={styles.scrollContent}
+        keyboardDismissMode="interactive"
+        keyboardShouldPersistTaps="handled"
+      >
         {/* Customer/Owner Selector */}
         <ThemedView style={styles.section}>
           <ThemedText type="subtitle">Vehicle Owner</ThemedText>
@@ -395,7 +402,8 @@ export default function EditVehicleScreen() {
           </TouchableOpacity>
         </ThemedView>
       </ScrollView>
-      
+      </Pressable>
+
       {/* Customer Selector Modal */}
       {showCustomerSelector && renderCustomerSelector()}
     </KeyboardAvoidingView>

@@ -1,5 +1,17 @@
 import React, { useState } from "react";
-import { StyleSheet, TextInput, TouchableOpacity, ScrollView, Alert, View, ActivityIndicator } from "react-native";
+import {
+  StyleSheet,
+  TextInput,
+  TouchableOpacity,
+  ScrollView,
+  Alert,
+  View,
+  ActivityIndicator,
+  KeyboardAvoidingView,
+  Platform,
+  Pressable,
+  Keyboard,
+} from "react-native";
 import { router, Stack } from "expo-router";
 import * as ImagePicker from 'expo-image-picker';
 import { FontAwesome5 } from '@expo/vector-icons';
@@ -150,13 +162,23 @@ const extractCustomerInfo = async (imageFile) => {
   }
 };
   return (
-    <ThemedView style={styles.container}>
-      <Stack.Screen options={{ 
+    <KeyboardAvoidingView
+      style={styles.container}
+      behavior={Platform.OS === "ios" ? "padding" : "height"}
+      keyboardVerticalOffset={Platform.OS === "ios" ? 100 : 0}
+    >
+      <Stack.Screen options={{
         title: "New Customer",
         headerBackTitle: "Back",
         headerBackButtonDisplay: "minimal",
       }} />
-      <ScrollView contentContainerStyle={styles.scrollContent}>
+      <Pressable style={styles.container} onPress={Keyboard.dismiss}>
+      <ThemedView style={styles.container}>
+      <ScrollView
+        contentContainerStyle={styles.scrollContent}
+        keyboardDismissMode="interactive"
+        keyboardShouldPersistTaps="handled"
+      >
         {/* Image Upload Section */}
         <ThemedView style={styles.imageSection}>
           <ThemedText style={styles.sectionTitle}>Scan Business Card or Form</ThemedText>
@@ -272,7 +294,9 @@ const extractCustomerInfo = async (imageFile) => {
           <ThemedText style={styles.cancelButtonText}>Cancel</ThemedText>
         </TouchableOpacity>
       </ScrollView>
-    </ThemedView>
+      </ThemedView>
+      </Pressable>
+    </KeyboardAvoidingView>
   );
 }
 

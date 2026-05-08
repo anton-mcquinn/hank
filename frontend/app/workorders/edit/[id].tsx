@@ -1,15 +1,17 @@
 // frontend/app/workorders/edit/[id].tsx
 import React, { useEffect, useState } from "react";
-import { 
-  StyleSheet, 
-  TextInput, 
-  TouchableOpacity, 
-  ScrollView, 
-  Alert, 
-  View, 
+import {
+  StyleSheet,
+  TextInput,
+  TouchableOpacity,
+  ScrollView,
+  Alert,
+  View,
   ActivityIndicator,
-  KeyboardAvoidingView, 
-  Platform 
+  KeyboardAvoidingView,
+  Platform,
+  Pressable,
+  Keyboard,
 } from "react-native";
 import { useLocalSearchParams, Stack, router } from "expo-router";
 import { FontAwesome5, MaterialIcons } from '@expo/vector-icons';
@@ -361,7 +363,12 @@ export default function EditWorkOrderScreen() {
         }} 
       />
       
-      <ScrollView contentContainerStyle={styles.scrollContent}>
+      <Pressable style={styles.container} onPress={Keyboard.dismiss}>
+      <ScrollView
+        contentContainerStyle={styles.scrollContent}
+        keyboardDismissMode="interactive"
+        keyboardShouldPersistTaps="handled"
+      >
         {/* Status Dropdown */}
         <ThemedView style={styles.section}>
           <ThemedText type="subtitle">Status</ThemedText>
@@ -595,7 +602,8 @@ export default function EditWorkOrderScreen() {
           </TouchableOpacity>
         </ThemedView>
       </ScrollView>
-      
+      </Pressable>
+
       {/* Selector Modals */}
       {showCustomerSelector && renderCustomerSelector()}
       {showVehicleSelector && renderVehicleSelector()}

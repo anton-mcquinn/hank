@@ -7,6 +7,10 @@ import {
   ActivityIndicator,
   Alert,
   View,
+  KeyboardAvoidingView,
+  Platform,
+  Pressable,
+  Keyboard,
 } from 'react-native';
 import { router } from 'expo-router';
 
@@ -54,19 +58,31 @@ export default function ShopEditScreen() {
   }
 
   return (
-    <ThemedView style={styles.container}>
-      <ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
-        <Field label="Shop Name" value={form.name} onChangeText={(v) => setForm({ ...form, name: v })} placeholder="Your Shop Name" />
-        <Field label="Address" value={form.address} onChangeText={(v) => setForm({ ...form, address: v })} placeholder="123 Main St, City, State" multiline />
-        <Field label="Phone" value={form.phone} onChangeText={(v) => setForm({ ...form, phone: v })} placeholder="(555) 123-4567" keyboardType="phone-pad" />
-        <Field label="Email" value={form.email} onChangeText={(v) => setForm({ ...form, email: v })} placeholder="shop@example.com" keyboardType="email-address" />
-        <Field label="Website" value={form.website} onChangeText={(v) => setForm({ ...form, website: v })} placeholder="www.yourshop.com" keyboardType="url" />
+    <KeyboardAvoidingView
+      style={styles.container}
+      behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+      keyboardVerticalOffset={Platform.OS === 'ios' ? 100 : 0}
+    >
+      <Pressable style={styles.container} onPress={Keyboard.dismiss}>
+        <ThemedView style={styles.container}>
+          <ScrollView
+            contentContainerStyle={styles.content}
+            keyboardDismissMode="interactive"
+            keyboardShouldPersistTaps="handled"
+          >
+            <Field label="Shop Name" value={form.name} onChangeText={(v) => setForm({ ...form, name: v })} placeholder="Your Shop Name" />
+            <Field label="Address" value={form.address} onChangeText={(v) => setForm({ ...form, address: v })} placeholder="123 Main St, City, State" multiline />
+            <Field label="Phone" value={form.phone} onChangeText={(v) => setForm({ ...form, phone: v })} placeholder="(555) 123-4567" keyboardType="phone-pad" />
+            <Field label="Email" value={form.email} onChangeText={(v) => setForm({ ...form, email: v })} placeholder="shop@example.com" keyboardType="email-address" />
+            <Field label="Website" value={form.website} onChangeText={(v) => setForm({ ...form, website: v })} placeholder="www.yourshop.com" keyboardType="url" />
 
-        <TouchableOpacity style={[styles.saveButton, saving && styles.disabled]} onPress={handleSave} disabled={saving}>
-          {saving ? <ActivityIndicator color="#fff" /> : <ThemedText style={styles.saveText}>Save</ThemedText>}
-        </TouchableOpacity>
-      </ScrollView>
-    </ThemedView>
+            <TouchableOpacity style={[styles.saveButton, saving && styles.disabled]} onPress={handleSave} disabled={saving}>
+              {saving ? <ActivityIndicator color="#fff" /> : <ThemedText style={styles.saveText}>Save</ThemedText>}
+            </TouchableOpacity>
+          </ScrollView>
+        </ThemedView>
+      </Pressable>
+    </KeyboardAvoidingView>
   );
 }
 

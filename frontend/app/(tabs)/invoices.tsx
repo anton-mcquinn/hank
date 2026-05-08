@@ -405,6 +405,8 @@ export default function InvoicesScreen() {
             keyExtractor={item => item.id}
             contentContainerStyle={styles.listContent}
             ItemSeparatorComponent={() => <View style={styles.separator} />}
+            keyboardDismissMode="on-drag"
+            keyboardShouldPersistTaps="handled"
             refreshControl={
               <RefreshControl
                 refreshing={refreshing}

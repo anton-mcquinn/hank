@@ -1,5 +1,16 @@
 import React, { useState, useContext } from 'react';
-import { StyleSheet, View, TextInput, TouchableOpacity, ActivityIndicator } from 'react-native';
+import {
+  StyleSheet,
+  View,
+  TextInput,
+  TouchableOpacity,
+  ActivityIndicator,
+  KeyboardAvoidingView,
+  Platform,
+  Pressable,
+  Keyboard,
+  ScrollView,
+} from 'react-native';
 import { router } from 'expo-router';
 import { AuthContext } from '../context/AuthContext';
 import ThemedText from '../components/ThemedText';
@@ -20,61 +31,75 @@ export default function LoginScreen() {
   };
 
   return (
-    <ThemedView style={styles.container}>
-      <ThemedText type="title" style={styles.appName}>Virtual Service Writer</ThemedText>
-      <ThemedText type="title" style={styles.title}>Log In</ThemedText>
-      
-      {isError && (
-        <ThemedText style={styles.errorText}>{errorMessage}</ThemedText>
-      )}
-      
-      <ThemedText style={styles.label}>Username or Email</ThemedText>
-      <TextInput
-        style={styles.input}
-        placeholder="Username or Email"
-        placeholderTextColor="#999"
-        value={username}
-        onChangeText={setUsername}
-        autoCapitalize="none"
-        editable={!isLoading}
-      />
+    <KeyboardAvoidingView
+      style={styles.flex}
+      behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+    >
+      <Pressable style={styles.flex} onPress={Keyboard.dismiss}>
+        <ThemedView style={styles.flex}>
+          <ScrollView
+            contentContainerStyle={styles.container}
+            keyboardDismissMode="interactive"
+            keyboardShouldPersistTaps="handled"
+          >
+            <ThemedText type="title" style={styles.appName}>Virtual Service Writer</ThemedText>
+            <ThemedText type="title" style={styles.title}>Log In</ThemedText>
 
-      <ThemedText style={styles.label}>Password</ThemedText>
-      <TextInput
-        style={styles.input}
-        placeholder="Password"
-        placeholderTextColor="#999"
-        value={password}
-        onChangeText={setPassword}
-        secureTextEntry
-        editable={!isLoading}
-      />
-      
-      <TouchableOpacity 
-        style={[styles.button, isLoading && styles.buttonDisabled]}
-        onPress={handleLogin}
-        disabled={isLoading}
-      >
-        {isLoading ? (
-          <ActivityIndicator color="#fff" />
-        ) : (
-          <ThemedText style={styles.buttonText}>Log In</ThemedText>
-        )}
-      </TouchableOpacity>
-      
-      <View style={styles.registerContainer}>
-        <ThemedText>Don't have an account?</ThemedText>
-        <TouchableOpacity onPress={() => router.replace('/auth/register')}>
-          <ThemedText style={styles.registerLink}>Register</ThemedText>
-        </TouchableOpacity>
-      </View>
-    </ThemedView>
+            {isError && (
+              <ThemedText style={styles.errorText}>{errorMessage}</ThemedText>
+            )}
+
+            <ThemedText style={styles.label}>Username or Email</ThemedText>
+            <TextInput
+              style={styles.input}
+              placeholder="Username or Email"
+              placeholderTextColor="#999"
+              value={username}
+              onChangeText={setUsername}
+              autoCapitalize="none"
+              editable={!isLoading}
+            />
+
+            <ThemedText style={styles.label}>Password</ThemedText>
+            <TextInput
+              style={styles.input}
+              placeholder="Password"
+              placeholderTextColor="#999"
+              value={password}
+              onChangeText={setPassword}
+              secureTextEntry
+              editable={!isLoading}
+            />
+
+            <TouchableOpacity
+              style={[styles.button, isLoading && styles.buttonDisabled]}
+              onPress={handleLogin}
+              disabled={isLoading}
+            >
+              {isLoading ? (
+                <ActivityIndicator color="#fff" />
+              ) : (
+                <ThemedText style={styles.buttonText}>Log In</ThemedText>
+              )}
+            </TouchableOpacity>
+
+            <View style={styles.registerContainer}>
+              <ThemedText>Don't have an account?</ThemedText>
+              <TouchableOpacity onPress={() => router.replace('/auth/register')}>
+                <ThemedText style={styles.registerLink}>Register</ThemedText>
+              </TouchableOpacity>
+            </View>
+          </ScrollView>
+        </ThemedView>
+      </Pressable>
+    </KeyboardAvoidingView>
   );
 }
 
 const styles = StyleSheet.create({
+  flex: { flex: 1 },
   container: {
-    flex: 1,
+    flexGrow: 1,
     padding: 20,
     justifyContent: 'center',
   },
