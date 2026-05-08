@@ -28,6 +28,6 @@ jobs:
             cd /home/anton/hank
             git fetch origin main
             git reset --hard origin/main
-            /home/anton/hank/venv/bin/pip install -r backend/requirements.txt
+            /home/anton/hank/venv/bin/python -m pip install -r backend/requirements.txt
             sudo /bin/systemctl restart hank
             sudo /bin/systemctl is-active hank
