@@ -8,6 +8,7 @@ import {
   Alert
 } from "react-native";
 import { FontAwesome5, MaterialIcons, Ionicons } from '@expo/vector-icons';
+import Constants from 'expo-constants';
 import { router } from 'expo-router';
 
 import ThemedText from "../components/ThemedText";
@@ -16,8 +17,7 @@ import { Colors } from "../constants/Colors";
 import { AuthContext } from "../context/AuthContext";
 import { ThemeContext } from "../context/ThemeContext";
 
-// App version - would be dynamic in production
-const APP_VERSION = "1.0.0";
+const APP_VERSION = Constants.expoConfig?.version ?? "unknown";
 
 export default function More() {
   const { colorScheme, preference, setPreference } = useContext(ThemeContext);
