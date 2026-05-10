@@ -84,7 +84,8 @@ async def refresh_token(
 
 
 @router.post("/register", response_model=User)
-async def register_user(user: UserCreate, db: Session = Depends(get_db)):
+@limiter.limit("5/hour")
+async def register_user(request: Request, user: UserCreate, db: Session = Depends(get_db)):
     """Register a new user"""
     # Check if username already exists
     db_user = UserRepository.get_by_username(db, user.username)
