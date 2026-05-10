@@ -36,6 +36,7 @@ const workordersApi = {
     if (data.customer_phone) formData.append('customer_phone', data.customer_phone);
     if (data.customer_email) formData.append('customer_email', data.customer_email);
     if (data.vehicle_id) formData.append('vehicle_id', data.vehicle_id);
+    if (data.transcript && data.transcript.trim()) formData.append('transcript', data.transcript.trim());
     
     // Add audio files
     if (data.audio_files) {

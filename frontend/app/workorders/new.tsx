@@ -1,12 +1,13 @@
 import React, { useState, useEffect, useCallback } from "react";
-import { 
-  StyleSheet, 
-  ScrollView, 
-  TouchableOpacity, 
-  Alert, 
+import {
+  StyleSheet,
+  ScrollView,
+  TouchableOpacity,
+  Alert,
   ActivityIndicator,
   View,
-  Platform
+  Platform,
+  TextInput
 } from "react-native";
 import { router, Stack, useFocusEffect, useLocalSearchParams } from "expo-router";
 import * as ImagePicker from 'expo-image-picker';
@@ -35,6 +36,7 @@ export default function NewWorkOrderScreen() {
   const [isRecording, setIsRecording] = useState(false);
   const [recordingDuration, setRecordingDuration] = useState(0);
   const [recordingTimer, setRecordingTimer] = useState<NodeJS.Timeout | null>(null);
+  const [transcript, setTranscript] = useState("");
   const [step, setStep] = useState(1); // 1 = Select Customer, 2 = Collect Data
   
     useFocusEffect(
@@ -293,6 +295,7 @@ export default function NewWorkOrderScreen() {
         vin_image: vinImage,
         plate_image: plateImage,
         odometer_image: odometerImage,
+        transcript,
       };
 
       // Call the API to create the work order
@@ -563,7 +566,7 @@ export default function NewWorkOrderScreen() {
               <ThemedText type="defaultSemiBold" style={styles.recordingsTitle}>
                 Recordings ({audioRecordings.length})
               </ThemedText>
-              
+
               {audioRecordings.map((recording, index) => (
                 <ThemedView key={index} style={styles.recordingItem}>
                   <ThemedView style={styles.recordingDetails}>
@@ -572,8 +575,8 @@ export default function NewWorkOrderScreen() {
                       Recording {index + 1}
                     </ThemedText>
                   </ThemedView>
-                  
-                  <TouchableOpacity 
+
+                  <TouchableOpacity
                     onPress={() => handleRemoveAudio(index)}
                   >
                     <MaterialIcons name="delete" size={20} color="red" />
@@ -582,6 +585,20 @@ export default function NewWorkOrderScreen() {
               ))}
             </ThemedView>
           )}
+
+          <ThemedText style={[styles.instruction, { marginTop: 16 }]}>
+            Or type the work description instead
+          </ThemedText>
+          <TextInput
+            style={styles.transcriptInput}
+            value={transcript}
+            onChangeText={setTranscript}
+            placeholder="Describe what was done — replaces or augments any audio."
+            placeholderTextColor="#888"
+            multiline
+            numberOfLines={6}
+            textAlignVertical="top"
+          />
         </ThemedView>
         
         {/* Create Button */}
@@ -681,6 +698,16 @@ const styles = StyleSheet.create({
   buttonText: {
     color: "white",
     fontWeight: "600",
+  },
+  transcriptInput: {
+    borderWidth: 1,
+    borderColor: "#ccc",
+    borderRadius: 8,
+    padding: 12,
+    minHeight: 120,
+    backgroundColor: "#fff",
+    color: "#000",
+    fontSize: 15,
   },
   instruction: {
     color: "#666",

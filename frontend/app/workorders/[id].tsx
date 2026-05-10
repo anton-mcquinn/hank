@@ -4,6 +4,8 @@ import { useLocalSearchParams, Stack, router } from "expo-router";
 
 import ThemedText from "../components/ThemedText";
 import ThemedView from "../components/ThemedView";
+import PDFViewer from "../components/PDFViewer";
+import MediaGallery from "../components/MediaGallery";
 import api from "../api";
 import { Customer, Vehicle, WorkOrder, LineItem } from "../api/types";
 
@@ -19,6 +21,10 @@ export default function WorkorderDetailScreen() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [autoRefreshTimer, setAutoRefreshTimer] = useState<NodeJS.Timeout | null>(null);
+  const [generating, setGenerating] = useState<"invoice" | "estimate" | null>(null);
+  const [pdfModalVisible, setPdfModalVisible] = useState(false);
+  const [currentPdfUrl, setCurrentPdfUrl] = useState("");
+  const [pdfTitle, setPdfTitle] = useState("");
 
   useEffect(() => {
     loadWorkOrderData();
@@ -145,29 +151,39 @@ export default function WorkorderDetailScreen() {
     );
   };
 
+  const generateAndPreview = async (
+    kind: "invoice" | "estimate",
+  ) => {
+    try {
+      setGenerating(kind);
+      const response =
+        kind === "invoice"
+          ? await api.invoices.generateInvoice(workOrderId, { generate_pdf: true, send_email: false })
+          : await api.invoices.generateEstimate(workOrderId, { generate_pdf: true, send_email: false });
+
+      if (!response.pdf_url) {
+        throw new Error("No PDF URL returned");
+      }
+
+      setPdfTitle(`${kind === "invoice" ? "Invoice" : "Estimate"} #${workOrderId.slice(0, 8)}`);
+      setCurrentPdfUrl(response.pdf_url);
+      setPdfModalVisible(true);
+      loadWorkOrderData();
+    } catch (err: any) {
+      Alert.alert("Error", err.message || `Failed to generate ${kind}`);
+    } finally {
+      setGenerating(null);
+    }
+  };
+
   const handleGenerateInvoice = () => {
     Alert.alert(
       "Generate Invoice",
       "Do you want to generate an invoice for this work order?",
       [
         { text: "Cancel", style: "cancel" },
-        {
-          text: "Generate PDF",
-          onPress: async () => {
-            try {
-              await api.invoices.generateInvoice(workOrderId, {
-                generate_pdf: false,
-                send_email: false
-              });
-              Alert.alert("Success", "Invoice generated successfully");
-              // Refresh data to see updated status
-              loadWorkOrderData();
-            } catch (err: any) {
-              Alert.alert("Error", err.message || "Failed to generate invoice");
-            }
-          }
-        }
-      ]
+        { text: "Generate PDF", onPress: () => generateAndPreview("invoice") },
+      ],
     );
   };
 
@@ -177,23 +193,8 @@ export default function WorkorderDetailScreen() {
       "Do you want to generate an estimate for this work order?",
       [
         { text: "Cancel", style: "cancel" },
-        {
-          text: "Generate PDF",
-          onPress: async () => {
-            try {
-              await api.invoices.generateEstimate(workOrderId, {
-                generate_pdf: false,
-                send_email: false
-              });
-              Alert.alert("Success", "Estimate generated successfully");
-              // Refresh data to see updated status
-              loadWorkOrderData();
-            } catch (err: any) {
-              Alert.alert("Error", err.message || "Failed to generate estimate");
-            }
-          }
-        }
-      ]
+        { text: "Generate PDF", onPress: () => generateAndPreview("estimate") },
+      ],
     );
   };
 
@@ -495,20 +496,34 @@ export default function WorkorderDetailScreen() {
           )}
         </ThemedView>
         
+        <ThemedView style={styles.section} lightColor="#ffffff" darkColor="#333333">
+          <MediaGallery parent={{ kind: "work_order", id: workOrderId }} title="Photos" />
+        </ThemedView>
+
         {/* Action Buttons */}
         <ThemedView style={styles.actionsContainer}>
-          <TouchableOpacity 
+          <TouchableOpacity
             style={styles.actionButton}
             onPress={handleGenerateInvoice}
+            disabled={generating !== null}
           >
-            <ThemedText style={styles.actionButtonText}>Generate Invoice</ThemedText>
+            {generating === "invoice" ? (
+              <ActivityIndicator size="small" color="#fff" />
+            ) : (
+              <ThemedText style={styles.actionButtonText}>Generate Invoice</ThemedText>
+            )}
           </TouchableOpacity>
-          
-          <TouchableOpacity 
+
+          <TouchableOpacity
             style={[styles.actionButton, styles.estimateButton]}
             onPress={handleGenerateEstimate}
+            disabled={generating !== null}
           >
-            <ThemedText style={styles.actionButtonText}>Generate Estimate</ThemedText>
+            {generating === "estimate" ? (
+              <ActivityIndicator size="small" color="#fff" />
+            ) : (
+              <ThemedText style={styles.actionButtonText}>Generate Estimate</ThemedText>
+            )}
           </TouchableOpacity>
         </ThemedView>
         
@@ -520,6 +535,14 @@ export default function WorkorderDetailScreen() {
           <ThemedText style={styles.deleteButtonText}>Delete Work Order</ThemedText>
         </TouchableOpacity>
       </ScrollView>
+
+      <PDFViewer
+        visible={pdfModalVisible}
+        onClose={() => setPdfModalVisible(false)}
+        pdfUrl={currentPdfUrl}
+        title={pdfTitle}
+        baseApiUrl=""
+      />
     </ThemedView>
   );
 }

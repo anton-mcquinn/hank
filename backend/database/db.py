@@ -9,6 +9,7 @@ from sqlalchemy import (
     MetaData,
     ForeignKey,
     Integer,
+    Index,
 )
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker, relationship
@@ -89,6 +90,8 @@ class WorkOrderDB(Base):
     total = Column(Float, default=0.0)
     status = Column(String, default="draft")
     processing_notes = Column(JSON, default=[])
+    invoice_key = Column(String, nullable=True)
+    estimate_key = Column(String, nullable=True)
     created_at = Column(TIMESTAMP, default=datetime.now)
     updated_at = Column(TIMESTAMP, default=datetime.now)
 
@@ -102,7 +105,43 @@ class ShopSettingsDB(Base):
     phone = Column(String, default="")
     email = Column(String, default="")
     website = Column(String, default="")
+    logo_key = Column(String, nullable=True)
     updated_at = Column(TIMESTAMP, default=datetime.now)
+
+
+class VehicleReminderDB(Base):
+    __tablename__ = "vehicle_reminders"
+
+    id = Column(String, primary_key=True, index=True)
+    user_id = Column(String, ForeignKey("users.id"), nullable=False, index=True)
+    vehicle_id = Column(String, ForeignKey("vehicles.id"), nullable=False, index=True)
+    title = Column(String, nullable=False)
+    body = Column(String, nullable=True)
+    photo_key = Column(String, nullable=True)
+    photo_content_type = Column(String, nullable=True)
+    created_at = Column(TIMESTAMP, default=datetime.now)
+    updated_at = Column(TIMESTAMP, default=datetime.now)
+
+
+class MediaAssetDB(Base):
+    __tablename__ = "media_assets"
+
+    id = Column(String, primary_key=True, index=True)
+    user_id = Column(String, ForeignKey("users.id"), nullable=False, index=True)
+    # parent_type is 'work_order' or 'vehicle' (no FK so we can switch parents without schema work)
+    parent_type = Column(String, nullable=False)
+    parent_id = Column(String, nullable=False)
+    # kind is 'before', 'after', 'reminder' (free-form so the frontend can introduce new categories)
+    kind = Column(String, nullable=False)
+    r2_key = Column(String, nullable=False)
+    content_type = Column(String, nullable=True)
+    caption = Column(String, nullable=True)
+    created_at = Column(TIMESTAMP, default=datetime.now)
+    updated_at = Column(TIMESTAMP, default=datetime.now)
+
+    __table_args__ = (
+        Index("ix_media_assets_parent", "user_id", "parent_type", "parent_id"),
+    )
 
 
 # Create database tables

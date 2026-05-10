@@ -1,7 +1,6 @@
 import logging
 import os
 import sys
-from pathlib import Path
 from dotenv import load_dotenv
 
 load_dotenv()
@@ -18,6 +17,7 @@ from api.workorder_routes import router as workorder_router
 from api.customer_routes import router as customer_router
 from api.vehicle_routes import router as vehicle_router
 from api.invoice_routes import router as invoice_router
+from api.media_routes import router as media_router
 from api.shop_routes import router as shop_router
 from database.db import init_db
 
@@ -42,14 +42,26 @@ if len(_jwt_secret) < 32 or _jwt_secret == "dev-secret-key-change-in-production"
     )
     sys.exit(1)
 
-# Environment variables — resolve to absolute paths so cwd changes don't matter
-UPLOAD_DIR = str(Path(os.getenv("UPLOAD_DIR", "./uploads")).resolve())
-INVOICE_DIR = str(Path(os.getenv("INVOICE_DIR", "./invoices")).resolve())
+# R2 storage: all-or-nothing. If any one is set, all must be set.
+_r2_vars = [
+    "R2_ACCOUNT_ID",
+    "R2_ACCESS_KEY_ID",
+    "R2_SECRET_ACCESS_KEY",
+    "R2_BUCKET_PRIVATE",
+    "R2_BUCKET_PUBLIC",
+    "R2_PUBLIC_BASE_URL",
+]
+_r2_set = [v for v in _r2_vars if os.getenv(v)]
+if _r2_set and len(_r2_set) != len(_r2_vars):
+    _r2_missing = [v for v in _r2_vars if not os.getenv(v)]
+    logger.error(
+        "Partial R2 configuration — set all of %s or none. Missing: %s",
+        _r2_vars, _r2_missing,
+    )
+    sys.exit(1)
+if not _r2_set:
+    logger.warning("R2 not configured — using local-disk storage fallback (dev only).")
 
-# Create upload directories
-os.makedirs(os.path.join(UPLOAD_DIR, "audio"), exist_ok=True)
-os.makedirs(os.path.join(UPLOAD_DIR, "images"), exist_ok=True)
-os.makedirs(INVOICE_DIR, exist_ok=True)
 
 # Initialize FastAPI app
 app = FastAPI(title="Auto Shop Work Order API")
@@ -79,6 +91,7 @@ app.include_router(workorder_router, prefix="/api/v1", tags=["work orders"])
 app.include_router(customer_router, prefix="/api/v1", tags=["customers"])
 app.include_router(vehicle_router, prefix="/api/v1", tags=["vehicles"])
 app.include_router(invoice_router, prefix="/api/v1", tags=["invoices"])
+app.include_router(media_router, prefix="/api/v1", tags=["media"])
 app.include_router(shop_router, prefix="/api/v1", tags=["shop"])
 
 

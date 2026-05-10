@@ -1,8 +1,10 @@
+.env
 backend/.env
 backend/uploads/
 backend/venv/
 backend/freshvenv/
 backend/invoices/
+backend/local_storage/
 **/__pycache__/
 *.pyc
 

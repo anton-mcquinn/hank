@@ -6,7 +6,15 @@ from typing import Dict, Any, List, Optional
 
 logger = logging.getLogger(__name__)
 
-from .db import UserDB, CustomerDB, VehicleDB, WorkOrderDB, ShopSettingsDB
+from .db import (
+    UserDB,
+    CustomerDB,
+    VehicleDB,
+    WorkOrderDB,
+    ShopSettingsDB,
+    MediaAssetDB,
+    VehicleReminderDB,
+)
 
 
 class UserRepository:
@@ -337,3 +345,93 @@ class WorkOrderRepository:
     @staticmethod
     def get_all(db, user_id: str):
         return db.query(WorkOrderDB).filter(WorkOrderDB.user_id == user_id).all()
+
+
+class MediaAssetRepository:
+    @staticmethod
+    def create(db: Session, user_id: str, data: Dict[str, Any]) -> MediaAssetDB:
+        if "id" not in data:
+            data["id"] = str(uuid.uuid4())
+        data["user_id"] = user_id
+        row = MediaAssetDB(**data)
+        db.add(row)
+        db.commit()
+        db.refresh(row)
+        return row
+
+    @staticmethod
+    def get_by_id(db: Session, user_id: str, asset_id: str) -> Optional[MediaAssetDB]:
+        return (
+            db.query(MediaAssetDB)
+            .filter(MediaAssetDB.id == asset_id, MediaAssetDB.user_id == user_id)
+            .first()
+        )
+
+    @staticmethod
+    def list_for_parent(
+        db: Session, user_id: str, parent_type: str, parent_id: str
+    ) -> List[MediaAssetDB]:
+        return (
+            db.query(MediaAssetDB)
+            .filter(
+                MediaAssetDB.user_id == user_id,
+                MediaAssetDB.parent_type == parent_type,
+                MediaAssetDB.parent_id == parent_id,
+            )
+            .order_by(MediaAssetDB.created_at.asc())
+            .all()
+        )
+
+    @staticmethod
+    def delete(db: Session, user_id: str, asset_id: str) -> Optional[MediaAssetDB]:
+        row = MediaAssetRepository.get_by_id(db, user_id, asset_id)
+        if not row:
+            return None
+        db.delete(row)
+        db.commit()
+        return row
+
+
+class VehicleReminderRepository:
+    @staticmethod
+    def create(db: Session, user_id: str, data: Dict[str, Any]) -> VehicleReminderDB:
+        if "id" not in data:
+            data["id"] = str(uuid.uuid4())
+        data["user_id"] = user_id
+        row = VehicleReminderDB(**data)
+        db.add(row)
+        db.commit()
+        db.refresh(row)
+        return row
+
+    @staticmethod
+    def get_by_id(db: Session, user_id: str, reminder_id: str) -> Optional[VehicleReminderDB]:
+        return (
+            db.query(VehicleReminderDB)
+            .filter(
+                VehicleReminderDB.id == reminder_id,
+                VehicleReminderDB.user_id == user_id,
+            )
+            .first()
+        )
+
+    @staticmethod
+    def list_for_vehicle(db: Session, user_id: str, vehicle_id: str) -> List[VehicleReminderDB]:
+        return (
+            db.query(VehicleReminderDB)
+            .filter(
+                VehicleReminderDB.user_id == user_id,
+                VehicleReminderDB.vehicle_id == vehicle_id,
+            )
+            .order_by(VehicleReminderDB.created_at.asc())
+            .all()
+        )
+
+    @staticmethod
+    def delete(db: Session, user_id: str, reminder_id: str) -> Optional[VehicleReminderDB]:
+        row = VehicleReminderRepository.get_by_id(db, user_id, reminder_id)
+        if not row:
+            return None
+        db.delete(row)
+        db.commit()
+        return row

@@ -166,6 +166,8 @@ class WorkOrderUpdate(BaseModel):
 
 class WorkOrder(WorkOrderBase):
     id: str
+    invoice_key: Optional[str] = None
+    estimate_key: Optional[str] = None
     created_at: datetime
     updated_at: datetime
 
@@ -181,6 +183,7 @@ class ShopSettings(BaseModel):
     phone: str = ""
     email: str = ""
     website: str = ""
+    logo_url: Optional[str] = None
 
     class Config:
         from_attributes = True

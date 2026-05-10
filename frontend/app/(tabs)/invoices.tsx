@@ -36,7 +36,7 @@ export default function InvoicesScreen() {
   const [pdfModalVisible, setPdfModalVisible] = useState(false);
   const [currentPdfUrl, setCurrentPdfUrl] = useState('');
   const [pdfTitle, setPdfTitle] = useState('');
-  const [generatingPdf, setGeneratingPdf] = useState(false);
+  const [generatingId, setGeneratingId] = useState<string | null>(null);
 
   // Load work orders with invoice/estimate status
   useEffect(() => {
@@ -147,56 +147,42 @@ export default function InvoicesScreen() {
     setSearchQuery('');
   };
 
-  // Generate and preview PDF
+  // Open the PDF for a work order. If R2 already has the PDF (key on the work
+  // order), re-issue a fresh presigned URL — no LLM/PDF re-render. Otherwise
+  // fall back to the full generate flow.
   const handleViewPdf = async (workOrder: WorkOrder) => {
     try {
-      setGeneratingPdf(true);
+      setGeneratingId(workOrder.id);
       const isEstimate = workOrder.status === 'estimated';
-      
-      // Determine if this is an invoice or estimate and set the title appropriately
       const documentType = isEstimate ? 'Estimate' : 'Invoice';
-      const documentId = workOrder.id.slice(0, 8);
-      const title = `${documentType} #${documentId}`;
-      
-      // Set the PDF title even before we have the URL
-      setPdfTitle(title);
-      
-      // API endpoint differs based on document type
-      const endpoint = isEstimate ? 'generate-estimate' : 'generate-invoice';
-      
-      // Make API call to generate PDF
-      let response;
-      if (isEstimate) {
-        response = await api.invoices.generateEstimate(workOrder.id, {
-          generate_pdf: true,
-          send_email: false
-        });
+      setPdfTitle(`${documentType} #${workOrder.id.slice(0, 8)}`);
+
+      const existingKey = isEstimate ? workOrder.estimate_key : workOrder.invoice_key;
+
+      let pdfUrl: string | undefined;
+      if (existingKey) {
+        const res = isEstimate
+          ? await api.invoices.getEstimateUrl(workOrder.id)
+          : await api.invoices.getInvoiceUrl(workOrder.id);
+        pdfUrl = res.url;
       } else {
-        response = await api.invoices.generateInvoice(workOrder.id, {
-          generate_pdf: true,
-          send_email: false
-        });
+        const res = isEstimate
+          ? await api.invoices.generateEstimate(workOrder.id, { generate_pdf: true, send_email: false })
+          : await api.invoices.generateInvoice(workOrder.id, { generate_pdf: true, send_email: false });
+        pdfUrl = res.pdf_url;
       }
-      
-      // Check if PDF was generated successfully
-      if (response.pdf_path) {
-        let filename = response.pdf_path.split('/').pop();
-        console.log(filename);
-        const pdfUrl = `/api/v1/invoices/${filename}`;
-        console.log(pdfUrl);
-        setCurrentPdfUrl(pdfUrl);
-        setPdfModalVisible(true);
-      } else {
-        throw new Error('PDF generation failed. No PDF path returned.');
+
+      if (!pdfUrl) {
+        throw new Error('No PDF URL returned.');
       }
+
+      setCurrentPdfUrl(pdfUrl);
+      setPdfModalVisible(true);
     } catch (err: any) {
-      console.error('Error generating PDF:', err);
-      Alert.alert(
-        'Error',
-        err.message || 'Failed to generate PDF. Please try again.'
-      );
+      console.error('Error loading PDF:', err);
+      Alert.alert('Error', err.message || 'Failed to load PDF. Please try again.');
     } finally {
-      setGeneratingPdf(false);
+      setGeneratingId(null);
     }
   };
 
@@ -261,12 +247,12 @@ export default function InvoicesScreen() {
             <ThemedText style={styles.priceText}>${item.total.toFixed(2)}</ThemedText>
           </View>
           
-          <TouchableOpacity 
+          <TouchableOpacity
             style={styles.viewPdfButton}
             onPress={() => handleViewPdf(item)}
-            disabled={generatingPdf}
+            disabled={generatingId !== null}
           >
-            {generatingPdf ? (
+            {generatingId === item.id ? (
               <ActivityIndicator size="small" color="#ffffff" />
             ) : (
               <>

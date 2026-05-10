@@ -86,33 +86,29 @@ export default function PDFViewer({
     setError(null);
     
     try {
-      // The pdfUrl might be a relative path, so we need to construct the full URL
       const fullUrl = getSourceUrl();
+      const filename = pdfUrl.split('/').pop()?.split('?')[0] || 'invoice.pdf';
 
-      // Get filename from URL
-      const filename = pdfUrl.split('/').pop() || 'invoice.pdf';
-      
       if (Platform.OS === 'web') {
-        // On web, simply open the PDF in a new tab
         window.open(fullUrl, '_blank');
         setDownloading(false);
         return;
       }
 
-      // Check if the directory exists, create if not
       const downloadDirectory = FileSystem.documentDirectory + 'downloads/';
       const dirInfo = await FileSystem.getInfoAsync(downloadDirectory);
       if (!dirInfo.exists) {
         await FileSystem.makeDirectoryAsync(downloadDirectory, { intermediates: true });
       }
 
-      // Download the file
       const downloadPath = downloadDirectory + filename;
       console.log('Downloading to:', downloadPath);
 
-      const downloadOptions = authToken
-        ? { headers: { Authorization: `Bearer ${authToken}` } }
-        : undefined;
+      // Presigned R2 URLs are self-authenticating via query params; sending an Authorization
+      // header would be redundant (and breaks signature validation on some S3-compatible stores).
+      const downloadOptions = isPresigned(fullUrl) || !authToken
+        ? undefined
+        : { headers: { Authorization: `Bearer ${authToken}` } };
       const downloadResult = await FileSystem.downloadAsync(
         fullUrl,
         downloadPath,
@@ -141,6 +137,9 @@ export default function PDFViewer({
       setDownloading(false);
     }
   };
+
+  // S3/R2 presigned URLs always carry an X-Amz-Signature query param.
+  const isPresigned = (url: string) => url.includes('X-Amz-Signature=');
 
   // Properly fixed getSourceUrl function with detailed logging
   const getSourceUrl = () => {
@@ -318,9 +317,10 @@ export default function PDFViewer({
               ref={webViewRef}
               source={{
                 uri: getSourceUrl(),
-                headers: authToken
-                  ? { Authorization: `Bearer ${authToken}` }
-                  : undefined,
+                headers:
+                  authToken && !isPresigned(getSourceUrl())
+                    ? { Authorization: `Bearer ${authToken}` }
+                    : undefined,
               }}
               style={styles.webView}
               onLoadEnd={() => {

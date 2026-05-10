@@ -13,10 +13,9 @@ import uuid
 from pydantic import BaseModel
 from datetime import datetime
 import os
-import aiofiles
 from sqlalchemy.orm import Session
 
-from api.models import WorkOrder, Customer, Vehicle, WorkOrderUpdate
+from api.models import WorkOrder, Customer, Vehicle, WorkOrderCreate, WorkOrderUpdate
 from api.auth_dependencies import get_current_user
 from services.audio import transcribe_audio
 from services.image import (
@@ -34,7 +33,6 @@ logger = logging.getLogger(__name__)
 router = APIRouter()
 
 # Resolved at import time from environment — not accepted from clients
-_UPLOAD_DIR = os.getenv("UPLOAD_DIR", "./uploads")
 _OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
 
 # Upload validation constants
@@ -88,6 +86,7 @@ async def create_work_order(
     customer_phone: Optional[str] = Form(None),
     customer_email: Optional[str] = Form(None),
     vehicle_id: Optional[str] = Form(None),
+    transcript: Optional[str] = Form(None),
     current_user: UserDB = Depends(get_current_user),
 ):
     """Create a new work order from audio files and images"""
@@ -138,25 +137,19 @@ async def create_work_order(
                     audio_filenames.append(audio_file.filename)
 
         vin_content = None
-        vin_filename = None
         if vin_image and vin_image.filename:
             vin_content = await vin_image.read()
             _validate_upload(vin_image, vin_content, _MAX_IMAGE_BYTES, _ALLOWED_IMAGE_EXT, "VIN image")
-            vin_filename = vin_image.filename
 
         odometer_content = None
-        odometer_filename = None
         if odometer_image and odometer_image.filename:
             odometer_content = await odometer_image.read()
             _validate_upload(odometer_image, odometer_content, _MAX_IMAGE_BYTES, _ALLOWED_IMAGE_EXT, "Odometer image")
-            odometer_filename = odometer_image.filename
 
         plate_content = None
-        plate_filename = None
         if plate_image and plate_image.filename:
             plate_content = await plate_image.read()
             _validate_upload(plate_image, plate_content, _MAX_IMAGE_BYTES, _ALLOWED_IMAGE_EXT, "Plate image")
-            plate_filename = plate_image.filename
 
         # Process uploads in background with file contents instead of file objects
         background_tasks.add_task(
@@ -166,15 +159,13 @@ async def create_work_order(
             audio_contents,
             audio_filenames,
             vin_content,
-            vin_filename,
             odometer_content,
-            odometer_filename,
             plate_content,
-            plate_filename,
             customer_id,
             customer_name,
             customer_phone,
             customer_email,
+            transcript,
         )
 
         return {
@@ -194,15 +185,13 @@ async def process_uploads(
     audio_contents,
     audio_filenames,
     vin_content,
-    vin_filename,
     odometer_content,
-    odometer_filename,
     plate_content,
-    plate_filename,
     customer_id,
     customer_name,
     customer_phone,
     customer_email,
+    typed_transcript=None,
 ):
     """Process uploaded file contents and update work order"""
     db = None
@@ -229,19 +218,8 @@ async def process_uploads(
         vin = None
         if vin_content:
             try:
-                # Ensure directory exists
-                os.makedirs(os.path.join(_UPLOAD_DIR, "images"), exist_ok=True)
-
-                vin_path = os.path.join(
-                    _UPLOAD_DIR,
-                    "images",
-                    f"{order_id}_vin{os.path.splitext(vin_filename)[1]}",
-                )
                 logger.info("Processing VIN image for order %s", order_id)
-                async with aiofiles.open(vin_path, "wb") as f:
-                    await f.write(vin_content)
-
-                vin = await extract_vin_from_image(vin_path)
+                vin = await extract_vin_from_image(vin_content)
                 update_data["processing_notes"].append("VIN image processed")
 
                 if vin:
@@ -262,16 +240,8 @@ async def process_uploads(
         odometer = None
         if odometer_content:
             try:
-                os.makedirs(os.path.join(_UPLOAD_DIR, "images"), exist_ok=True)
-                odo_path = os.path.join(
-                    _UPLOAD_DIR,
-                    "images",
-                    f"{order_id}_odo{os.path.splitext(odometer_filename)[1]}",
-                )
                 logger.info("Processing odometer image for order %s", order_id)
-                async with aiofiles.open(odo_path, "wb") as f:
-                    await f.write(odometer_content)
-                odometer = await read_odometer_image(odo_path)
+                odometer = await read_odometer_image(odometer_content)
                 update_data["processing_notes"].append("Odometer image processed")
 
                 if odometer:
@@ -291,16 +261,8 @@ async def process_uploads(
         plate = None
         if plate_content:
             try:
-                os.makedirs(os.path.join(_UPLOAD_DIR, "images"), exist_ok=True)
-                plate_path = os.path.join(
-                    _UPLOAD_DIR,
-                    "images",
-                    f"{order_id}_plate{os.path.splitext(plate_filename)[1]}",
-                )
                 logger.info("Processing plate image for order %s", order_id)
-                async with aiofiles.open(plate_path, "wb") as f:
-                    await f.write(plate_content)
-                plate = await read_plate_from_image(plate_path)
+                plate = await read_plate_from_image(plate_content)
                 update_data["processing_notes"].append("Plate image processed")
                 if plate:
                     vehicle_info["plate"] = plate
@@ -419,40 +381,23 @@ async def process_uploads(
 
         # Process audio files
         all_transcripts = []
+        if typed_transcript and typed_transcript.strip():
+            all_transcripts.append(typed_transcript.strip())
+            update_data["processing_notes"].append("Typed transcript received")
         if audio_contents:
-            # Create audio directory if it doesn't exist
-            os.makedirs(os.path.join(_UPLOAD_DIR, "audio"), exist_ok=True)
-
             for i, (audio_content, audio_filename) in enumerate(
                 zip(audio_contents, audio_filenames)
             ):
-                # Skip if None
                 if audio_content is None or audio_filename is None:
                     continue
 
                 try:
-                    # Get file extension from the original filename
-                    _, ext = os.path.splitext(audio_filename)
-
-                    # Create the file path with proper extension
-                    audio_path = os.path.join(
-                        _UPLOAD_DIR,
-                        "audio",
-                        f"{order_id}_{i}{ext}",
+                    logger.info("Transcribing audio file %d for order %s", i, order_id)
+                    transcript = await transcribe_audio(
+                        audio_content, audio_filename, _OPENAI_API_KEY
                     )
-
-                    # Write the content to disk using aiofiles
-                    logger.info("Writing audio file %d for order %s", i, order_id)
-                    async with aiofiles.open(audio_path, "wb") as f:
-                        await f.write(audio_content)
-
-                    # Now process the file on disk
-                    if os.path.exists(audio_path) and os.path.getsize(audio_path) > 0:
-                        transcript = await transcribe_audio(audio_path, _OPENAI_API_KEY)
-                        if transcript:
-                            all_transcripts.append(transcript)
-                    else:
-                        logger.warning("Audio file not saved properly: %s", audio_path)
+                    if transcript:
+                        all_transcripts.append(transcript)
                 except Exception as e:
                     logger.error("Error processing audio file %d for order %s: %s", i, order_id, e)
 
@@ -511,6 +456,36 @@ async def process_uploads(
     finally:
         if db is not None:
             db.close()
+
+
+@router.post("/work-orders", response_model=WorkOrder)
+async def create_work_order_json(
+    payload: WorkOrderCreate,
+    db: Session = Depends(get_db),
+    current_user: UserDB = Depends(get_current_user),
+):
+    """Create a work order from JSON (no media uploads). Used by the web app."""
+    if payload.customer_id:
+        customer = CustomerRepository.get_by_id(db, current_user.id, payload.customer_id)
+        if not customer:
+            raise HTTPException(status_code=404, detail="Customer not found")
+
+    if payload.vehicle_id:
+        vehicle = VehicleRepository.get_by_id(db, current_user.id, payload.vehicle_id)
+        if not vehicle:
+            raise HTTPException(status_code=404, detail="Vehicle not found")
+
+    now = datetime.now()
+    data = payload.dict()
+    data.update(
+        {
+            "id": str(uuid.uuid4()),
+            "created_at": now,
+            "updated_at": now,
+        }
+    )
+
+    return WorkOrderRepository.create(db, current_user.id, data)
 
 
 @router.get("/work-orders/{order_id}", response_model=WorkOrder)
