@@ -20,6 +20,8 @@ from reportlab.platypus import (
 )
 from reportlab.lib.units import inch
 
+from services import storage
+
 load_dotenv()
 
 # Resolve paths relative to the backend/ package, not the process cwd
@@ -112,6 +114,7 @@ async def generate_invoice_html(
         company_phone = (s.phone if s and s.phone else None) or _ENV_COMPANY_PHONE
         company_email = (s.email if s and s.email else None) or _ENV_COMPANY_EMAIL
         company_website = (s.website if s and s.website else None) or _ENV_COMPANY_WEBSITE
+        logo_key = s.logo_key if s and getattr(s, "logo_key", None) else None
 
         # Prepare template data
         template_data = {
@@ -144,6 +147,8 @@ async def generate_invoice_html(
             "total": f"${work_order.total:.2f}",
             # Settings
             "is_estimate": is_estimate,
+            "logo_key": logo_key,
+            "logo_url": storage.public_url(logo_key) if logo_key else None,
         }
 
         template = template_env.get_template("invoice_template.html")
@@ -189,25 +194,35 @@ async def generate_pdf_with_reportlab(template_data) -> bytes | None:
         # Build the document elements
         elements = []
 
+        # If a logo is configured, fetch its bytes and prepend an Image flowable
+        # to the company-info column. Best-effort: missing/corrupt logos are
+        # skipped silently so a render still succeeds.
+        company_column = []
+        logo_key = template_data.get("logo_key")
+        if logo_key:
+            try:
+                logo_bytes = storage.get("public", logo_key)
+                logo_img = Image(BytesIO(logo_bytes), width=1.5 * inch, height=1.0 * inch, kind="proportional")
+                logo_img.hAlign = "LEFT"
+                company_column.append(logo_img)
+                company_column.append(Spacer(1, 6))
+            except Exception as e:  # noqa: BLE001
+                logger.warning("Could not embed logo %s: %s", logo_key, e)
+
+        company_column.extend(
+            [
+                Paragraph(f"<b>{template_data['company_name']}</b>", styles["Heading2"]),
+                Paragraph(template_data["company_address"], styles["Normal"]),
+                Paragraph(f"Phone: {template_data['company_phone']}", styles["Normal"]),
+                Paragraph(f"Email: {template_data['company_email']}", styles["Normal"]),
+                Paragraph(f"Website: {template_data['company_website']}", styles["Normal"]),
+            ]
+        )
+
         # Header table - Company info and document info
         header_data = [
             [
-                # Company info
-                [
-                    Paragraph(
-                        f"<b>{template_data['company_name']}</b>", styles["Heading2"]
-                    ),
-                    Paragraph(template_data["company_address"], styles["Normal"]),
-                    Paragraph(
-                        f"Phone: {template_data['company_phone']}", styles["Normal"]
-                    ),
-                    Paragraph(
-                        f"Email: {template_data['company_email']}", styles["Normal"]
-                    ),
-                    Paragraph(
-                        f"Website: {template_data['company_website']}", styles["Normal"]
-                    ),
-                ],
+                company_column,
                 # Document info
                 [
                     Paragraph(

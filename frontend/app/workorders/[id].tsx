@@ -5,6 +5,7 @@ import { useLocalSearchParams, Stack, router } from "expo-router";
 import ThemedText from "../components/ThemedText";
 import ThemedView from "../components/ThemedView";
 import PDFViewer from "../components/PDFViewer";
+import MediaGallery from "../components/MediaGallery";
 import api from "../api";
 import { Customer, Vehicle, WorkOrder, LineItem } from "../api/types";
 
@@ -495,6 +496,10 @@ export default function WorkorderDetailScreen() {
           )}
         </ThemedView>
         
+        <ThemedView style={styles.section} lightColor="#ffffff" darkColor="#333333">
+          <MediaGallery parent={{ kind: "work_order", id: workOrderId }} title="Photos" />
+        </ThemedView>
+
         {/* Action Buttons */}
         <ThemedView style={styles.actionsContainer}>
           <TouchableOpacity

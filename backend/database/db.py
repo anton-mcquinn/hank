@@ -52,7 +52,6 @@ class CustomerDB(Base):
     phone = Column(String, nullable=False)
     address = Column(String, nullable=False)
     vehicles = Column(JSON, default=[])
-    photo_key = Column(String, nullable=True)
     created_at = Column(TIMESTAMP, default=datetime.now)
     updated_at = Column(TIMESTAMP, default=datetime.now)
 
@@ -107,6 +106,20 @@ class ShopSettingsDB(Base):
     email = Column(String, default="")
     website = Column(String, default="")
     logo_key = Column(String, nullable=True)
+    updated_at = Column(TIMESTAMP, default=datetime.now)
+
+
+class VehicleReminderDB(Base):
+    __tablename__ = "vehicle_reminders"
+
+    id = Column(String, primary_key=True, index=True)
+    user_id = Column(String, ForeignKey("users.id"), nullable=False, index=True)
+    vehicle_id = Column(String, ForeignKey("vehicles.id"), nullable=False, index=True)
+    title = Column(String, nullable=False)
+    body = Column(String, nullable=True)
+    photo_key = Column(String, nullable=True)
+    photo_content_type = Column(String, nullable=True)
+    created_at = Column(TIMESTAMP, default=datetime.now)
     updated_at = Column(TIMESTAMP, default=datetime.now)
 
 

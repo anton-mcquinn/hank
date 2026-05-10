@@ -17,6 +17,7 @@ from api.workorder_routes import router as workorder_router
 from api.customer_routes import router as customer_router
 from api.vehicle_routes import router as vehicle_router
 from api.invoice_routes import router as invoice_router
+from api.media_routes import router as media_router
 from api.shop_routes import router as shop_router
 from database.db import init_db
 
@@ -90,6 +91,7 @@ app.include_router(workorder_router, prefix="/api/v1", tags=["work orders"])
 app.include_router(customer_router, prefix="/api/v1", tags=["customers"])
 app.include_router(vehicle_router, prefix="/api/v1", tags=["vehicles"])
 app.include_router(invoice_router, prefix="/api/v1", tags=["invoices"])
+app.include_router(media_router, prefix="/api/v1", tags=["media"])
 app.include_router(shop_router, prefix="/api/v1", tags=["shop"])
 
 

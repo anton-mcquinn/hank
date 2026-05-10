@@ -6,6 +6,7 @@ import { FontAwesome5 } from '@expo/vector-icons';
 
 import ThemedText from "../components/ThemedText";
 import ThemedView from "../components/ThemedView";
+import VehicleReminderList from "../components/VehicleReminderList";
 import api from "../api";
 import { Customer, Vehicle, WorkOrder } from "../api/types";
 
@@ -188,8 +189,10 @@ export default function VehicleDetailScreen() {
               </View>
             )}
           </View>
+
+          <VehicleReminderList vehicleId={vehicleId} />
         </ThemedView>
-        
+
         {/* Owner Information */}
         <ThemedView 
           style={styles.section}

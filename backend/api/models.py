@@ -183,6 +183,7 @@ class ShopSettings(BaseModel):
     phone: str = ""
     email: str = ""
     website: str = ""
+    logo_url: Optional[str] = None
 
     class Config:
         from_attributes = True
