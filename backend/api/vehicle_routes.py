@@ -52,6 +52,14 @@ async def create_vehicle(
     return VehicleRepository.create(db, current_user.id, vehicle_data)
 
 
+@router.get("/vehicles", response_model=List[Vehicle])
+async def list_vehicles(
+    db: Session = Depends(get_db),
+    current_user: UserDB = Depends(get_current_user),
+):
+    return VehicleRepository.get_all(db, current_user.id)
+
+
 @router.get("/vehicles/{vehicle_id}", response_model=Vehicle)
 async def get_vehicle(
     vehicle_id: str,
