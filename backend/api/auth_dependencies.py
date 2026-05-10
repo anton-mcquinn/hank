@@ -1,12 +1,12 @@
 from fastapi import Depends, HTTPException, status
 from fastapi.security import OAuth2PasswordBearer
 from sqlalchemy.orm import Session
-from jose import jwt, JWTError
+from jose import JWTError
 from typing import Optional
 
 from database.db import get_db
 from database.repos import UserRepository
-from services.auth import SECRET_KEY, ALGORITHM
+from services.auth import decode_token, ACCESS_TOKEN_TYPE
 from api.models import TokenData
 
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="auth/token")
@@ -23,13 +23,11 @@ async def get_current_user(
     )
 
     try:
-        # Decode the JWT token
-        payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
+        payload = decode_token(token, expected_type=ACCESS_TOKEN_TYPE)
         user_id: str = payload.get("sub")
         if user_id is None:
             raise credentials_exception
 
-        # Create token data
         token_data = TokenData(
             user_id=user_id,
             username=payload.get("username"),

@@ -1,7 +1,6 @@
 import React, { useState, useContext } from 'react';
 import {
   StyleSheet,
-  View,
   TextInput,
   TouchableOpacity,
   ActivityIndicator,
@@ -11,7 +10,6 @@ import {
   Keyboard,
   ScrollView,
 } from 'react-native';
-import { router } from 'expo-router';
 import { AuthContext } from '../context/AuthContext';
 import ThemedText from '../components/ThemedText';
 import ThemedView from '../components/ThemedView';
@@ -82,13 +80,6 @@ export default function LoginScreen() {
                 <ThemedText style={styles.buttonText}>Log In</ThemedText>
               )}
             </TouchableOpacity>
-
-            <View style={styles.registerContainer}>
-              <ThemedText>Don't have an account?</ThemedText>
-              <TouchableOpacity onPress={() => router.replace('/auth/register')}>
-                <ThemedText style={styles.registerLink}>Register</ThemedText>
-              </TouchableOpacity>
-            </View>
           </ScrollView>
         </ThemedView>
       </Pressable>
@@ -142,15 +133,5 @@ const styles = StyleSheet.create({
     color: 'red',
     marginBottom: 16,
     textAlign: 'center',
-  },
-  registerContainer: {
-    flexDirection: 'row',
-    justifyContent: 'center',
-    marginTop: 24,
-  },
-  registerLink: {
-    color: '#0a7ea4',
-    fontWeight: '600',
-    marginLeft: 5,
   },
 });

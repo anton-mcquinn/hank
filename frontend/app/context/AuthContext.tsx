@@ -1,9 +1,7 @@
 // frontend/app/context/AuthContext.tsx
 import React, { createContext, useState, useEffect, ReactNode } from 'react';
-import * as SecureStore from 'expo-secure-store';
-import api from '../api/client';
+import api, { tokenStorage, setOnAuthFailure, ApiError } from '../api/client';
 
-// Define types for context data
 interface User {
   id: string;
   username: string;
@@ -20,10 +18,8 @@ interface AuthContextType {
   errorMessage: string;
   login: (username: string, password: string) => Promise<void>;
   logout: () => Promise<void>;
-  register: (username: string, email: string, password: string) => Promise<void>;
 }
 
-// Create context with default values
 export const AuthContext = createContext<AuthContextType>({
   isLoading: false,
   userToken: null,
@@ -32,7 +28,6 @@ export const AuthContext = createContext<AuthContextType>({
   errorMessage: '',
   login: async () => {},
   logout: async () => {},
-  register: async () => {},
 });
 
 interface AuthProviderProps {
@@ -46,72 +41,69 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   const [isError, setIsError] = useState<boolean>(false);
   const [errorMessage, setErrorMessage] = useState<string>('');
 
-  // Load token on startup
+  // When the api client fails to refresh, clear local state so the app bounces to /auth/login.
   useEffect(() => {
-    bootstrapAsync();
+    setOnAuthFailure(() => {
+      setUserToken(null);
+      setUserInfo(null);
+    });
+    return () => setOnAuthFailure(null);
   }, []);
 
-  // Function to load stored token
-  const bootstrapAsync = async (): Promise<void> => {
-    try {
-      const storedToken = await SecureStore.getItemAsync('userToken');
-      if (storedToken) {
-        // Validate the token before exposing it to the app
-        await getUserInfo(storedToken);
+  // Load tokens on startup and try to fetch the current user.
+  // The api client transparently refreshes a stale access token if a valid refresh token exists.
+  useEffect(() => {
+    (async () => {
+      try {
+        const storedAccess = await tokenStorage.getAccess();
+        if (!storedAccess) return;
+
+        try {
+          const me = await api.get<User>('/auth/me');
+          // Re-read from storage in case the api client rotated tokens during /auth/me.
+          const currentAccess = await tokenStorage.getAccess();
+          setUserToken(currentAccess);
+          setUserInfo(me);
+        } catch (error) {
+          if (error instanceof ApiError && error.status === 401) {
+            await tokenStorage.clear();
+          } else {
+            console.error('Bootstrap auth error:', error);
+          }
+        }
+      } finally {
+        setIsLoading(false);
       }
-    } catch (error) {
-      console.error('Error loading token:', error);
-    } finally {
-      setIsLoading(false);
-    }
-  };
+    })();
+  }, []);
 
-  // Get user info with token
-  const getUserInfo = async (token: string): Promise<void> => {
-    try {
-      const headers = { Authorization: `Bearer ${token}` };
-      const response = await fetch(`${api.getBaseUrl()}/auth/me`, { headers });
-
-      if (!response.ok) {
-        // Invalid or expired token — clear it silently without setting an error
-        await SecureStore.deleteItemAsync('userToken');
-        return;
-      }
-
-      const data = await response.json();
-      setUserToken(token);
-      setUserInfo(data);
-    } catch (error) {
-      console.error('Error fetching user info:', error);
-      await SecureStore.deleteItemAsync('userToken');
-    }
-  };
-
-  // Login function
   const login = async (username: string, password: string): Promise<void> => {
     setIsLoading(true);
     setIsError(false);
-    
+
     try {
       const formData = new FormData();
       formData.append('username', username);
       formData.append('password', password);
-      
+
       const response = await fetch(`${api.getBaseUrl()}/auth/token`, {
         method: 'POST',
         body: formData,
       });
-      
+
       const data = await response.json();
-      
-      if (response.ok) {
-        setUserToken(data.access_token);
-        await SecureStore.setItemAsync('userToken', data.access_token);
-        await getUserInfo(data.access_token);
-      } else {
+
+      if (!response.ok) {
         setIsError(true);
         setErrorMessage(data.detail || 'Login failed');
+        return;
       }
+
+      await tokenStorage.setPair(data.access_token, data.refresh_token);
+      setUserToken(data.access_token);
+
+      const me = await api.get<User>('/auth/me');
+      setUserInfo(me);
     } catch (error) {
       setIsError(true);
       setErrorMessage('Network error. Please try again.');
@@ -121,48 +113,14 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     }
   };
 
-  // Register function
-  const register = async (username: string, email: string, password: string): Promise<void> => {
-    setIsLoading(true);
-    setIsError(false);
-    
-    try {
-      const response = await fetch(`${api.getBaseUrl()}/auth/register`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ username, email, password }),
-      });
-      
-      const data = await response.json();
-      
-      if (response.ok) {
-        // Auto-login after registration
-        await login(username, password);
-      } else {
-        setIsError(true);
-        setErrorMessage(data.detail || 'Registration failed');
-      }
-    } catch (error) {
-      setIsError(true);
-      setErrorMessage('Network error. Please try again.');
-      console.error('Registration error:', error);
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
-  // Logout function
   const logout = async (): Promise<void> => {
     setIsLoading(true);
     setUserToken(null);
     setUserInfo(null);
-    await SecureStore.deleteItemAsync('userToken');
+    await tokenStorage.clear();
     setIsLoading(false);
   };
 
-  // Create authentication context value
   const authContext: AuthContextType = {
     isLoading,
     userToken,
@@ -171,7 +129,6 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     errorMessage,
     login,
     logout,
-    register,
   };
 
   return (
