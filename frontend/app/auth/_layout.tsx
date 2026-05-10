@@ -12,13 +12,6 @@ export default function AuthLayout() {
           headerShown: false,
         }}
       />
-      <Stack.Screen
-        name="register"
-        options={{
-          title: "Register",
-          headerShown: false,
-        }}
-      />
     </Stack>
   );
 }

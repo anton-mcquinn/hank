@@ -17,7 +17,7 @@ from services.auth import (
     REFRESH_TOKEN_EXPIRE_DAYS,
 )
 from api.models import User, UserCreate, Token
-from api.auth_dependencies import get_current_user
+from api.auth_dependencies import get_current_user, get_admin_user
 
 router = APIRouter()
 
@@ -85,8 +85,13 @@ async def refresh_token(
 
 @router.post("/register", response_model=User)
 @limiter.limit("5/hour")
-async def register_user(request: Request, user: UserCreate, db: Session = Depends(get_db)):
-    """Register a new user"""
+async def register_user(
+    request: Request,
+    user: UserCreate,
+    db: Session = Depends(get_db),
+    _admin: User = Depends(get_admin_user),
+):
+    """Register a new user. Admin-only — accounts are created out-of-band."""
     # Check if username already exists
     db_user = UserRepository.get_by_username(db, user.username)
     if db_user:

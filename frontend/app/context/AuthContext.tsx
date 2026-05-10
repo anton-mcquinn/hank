@@ -20,7 +20,6 @@ interface AuthContextType {
   errorMessage: string;
   login: (username: string, password: string) => Promise<void>;
   logout: () => Promise<void>;
-  register: (username: string, email: string, password: string) => Promise<void>;
 }
 
 // Create context with default values
@@ -32,7 +31,6 @@ export const AuthContext = createContext<AuthContextType>({
   errorMessage: '',
   login: async () => {},
   logout: async () => {},
-  register: async () => {},
 });
 
 interface AuthProviderProps {
@@ -121,38 +119,6 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     }
   };
 
-  // Register function
-  const register = async (username: string, email: string, password: string): Promise<void> => {
-    setIsLoading(true);
-    setIsError(false);
-    
-    try {
-      const response = await fetch(`${api.getBaseUrl()}/auth/register`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ username, email, password }),
-      });
-      
-      const data = await response.json();
-      
-      if (response.ok) {
-        // Auto-login after registration
-        await login(username, password);
-      } else {
-        setIsError(true);
-        setErrorMessage(data.detail || 'Registration failed');
-      }
-    } catch (error) {
-      setIsError(true);
-      setErrorMessage('Network error. Please try again.');
-      console.error('Registration error:', error);
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
   // Logout function
   const logout = async (): Promise<void> => {
     setIsLoading(true);
@@ -171,7 +137,6 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     errorMessage,
     login,
     logout,
-    register,
   };
 
   return (
