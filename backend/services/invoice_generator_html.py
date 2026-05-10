@@ -1,6 +1,5 @@
 import logging
 import os
-import uuid
 from datetime import datetime
 from pathlib import Path
 import jinja2
@@ -26,8 +25,6 @@ load_dotenv()
 # Resolve paths relative to the backend/ package, not the process cwd
 _BACKEND_DIR = Path(__file__).resolve().parent.parent
 
-# Configuration from environment variables
-INVOICE_DIR = os.getenv("INVOICE_DIR", str(_BACKEND_DIR / "invoices"))
 TEMPLATE_DIR = os.getenv("TEMPLATE_DIR", str(_BACKEND_DIR / "templates"))
 # Env var fallbacks (used when no DB shop settings exist yet)
 _ENV_COMPANY_NAME = os.getenv("COMPANY_NAME", "Auto Shop")
@@ -35,10 +32,6 @@ _ENV_COMPANY_ADDRESS = os.getenv("COMPANY_ADDRESS", "123 Main St, Anytown, USA")
 _ENV_COMPANY_PHONE = os.getenv("COMPANY_PHONE", "(555) 123-4567")
 _ENV_COMPANY_EMAIL = os.getenv("COMPANY_EMAIL", "service@autoshop.com")
 _ENV_COMPANY_WEBSITE = os.getenv("COMPANY_WEBSITE", "www.yourautoshop.com")
-
-# Ensure directories exist
-os.makedirs(INVOICE_DIR, exist_ok=True)
-os.makedirs(TEMPLATE_DIR, exist_ok=True)
 
 # Set up jinja2 environment
 template_loader = jinja2.FileSystemLoader(searchpath=TEMPLATE_DIR)
@@ -48,27 +41,13 @@ template_env = jinja2.Environment(loader=template_loader)
 async def generate_invoice_html(
     work_order, customer=None, vehicle=None, is_estimate=False, shop_settings=None
 ):
-    """
-    Generate an HTML invoice or estimate using a template
+    """Render an HTML invoice/estimate from the Jinja template.
 
-    Args:
-        work_order: WorkOrder database object
-        customer: Customer database object (optional)
-        vehicle: Vehicle database object (optional)
-        is_estimate: Boolean indicating if this is an estimate (True) or invoice (False)
-
-    Returns:
-        tuple: (HTML content, file path)
+    Returns ``(html_content, template_data)``. The template_data dict is reused by
+    the PDF generator so it doesn't have to recompute formatting.
     """
     try:
-        # Determine document type
         document_type = "ESTIMATE" if is_estimate else "INVOICE"
-
-        # Generate file name and path
-        timestamp = datetime.now().strftime("%Y%m%d%H%M%S")
-        unique_id = str(uuid.uuid4())[:8]
-        html_filename = f"{document_type.lower()}_{work_order.id[:8]}.html"
-        html_path = os.path.join(INVOICE_DIR, html_filename)
 
         # Prepare customer data
         customer_data = {}
@@ -167,48 +146,22 @@ async def generate_invoice_html(
             "is_estimate": is_estimate,
         }
 
-        # Load template
         template = template_env.get_template("invoice_template.html")
-
-        # Render HTML
         html_content = template.render(**template_data)
 
-        # Save HTML file
-        with open(html_path, "w", encoding="utf-8") as f:
-            f.write(html_content)
-
-        return html_content, html_path, template_data
+        return html_content, template_data
 
     except Exception as e:
         logger.error("Error generating HTML invoice: %s", e, exc_info=True)
-        return None, None, None
+        return None, None
 
 
-async def generate_pdf_with_reportlab(template_data, output_path=None):
-    """
-    Generate a PDF invoice directly with ReportLab
-
-    Args:
-        template_data: Data dictionary used for the HTML template
-        output_path: Path for output PDF file (optional)
-
-    Returns:
-        str: Path to generated PDF file
-    """
+async def generate_pdf_with_reportlab(template_data) -> bytes | None:
+    """Generate a PDF invoice/estimate as raw bytes (no disk I/O)."""
     try:
-        # Generate a filename if not provided
-        if not output_path:
-            document_type = (
-                "estimate" if template_data.get("is_estimate", False) else "invoice"
-            )
-            timestamp = datetime.now().strftime("%Y%m%d%H%M%S")
-            unique_id = str(uuid.uuid4())[:8]
-            filename = f"{document_type}_{template_data['order_id']}_{timestamp}.pdf"
-            output_path = os.path.join(INVOICE_DIR, filename)
-
-        # Set up the document
+        buffer = BytesIO()
         doc = SimpleDocTemplate(
-            output_path,
+            buffer,
             pagesize=letter,
             rightMargin=0.5 * inch,
             leftMargin=0.5 * inch,
@@ -468,10 +421,8 @@ async def generate_pdf_with_reportlab(template_data, output_path=None):
             )
         )
 
-        # Build the PDF
         doc.build(elements)
-
-        return output_path
+        return buffer.getvalue()
 
     except Exception as e:
         logger.error("Error generating PDF with ReportLab: %s", e, exc_info=True)

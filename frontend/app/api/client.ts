@@ -1,4 +1,5 @@
 // API client for making HTTP requests to the backend
+import { Platform } from 'react-native';
 import * as SecureStore from 'expo-secure-store';
 
 export const getAuthHeader = async (): Promise<Record<string, string>> => {
@@ -13,8 +14,11 @@ export const getAuthHeader = async (): Promise<Record<string, string>> => {
   return {};
 };
 
+// iOS simulator shares the host's loopback; Android emulator reaches the host via 10.0.2.2.
+const DEV_HOST = Platform.OS === 'android' ? '10.0.2.2' : 'localhost';
+
 const API_URL = {
-  development: 'https://hank.idleworkshop.com/api/v1',
+  development: `http://${DEV_HOST}:8000/api/v1`,
   production: 'https://hank.idleworkshop.com/api/v1',
 };
 

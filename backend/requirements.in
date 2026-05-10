@@ -15,3 +15,4 @@ jinja2
 python-jose[cryptography]
 bcrypt
 passlib[bcrypt]
+boto3

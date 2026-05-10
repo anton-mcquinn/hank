@@ -1,11 +1,9 @@
 import logging
-import os
 import uuid
 from datetime import datetime
 from pathlib import Path
 from typing import List
 
-import aiofiles
 from fastapi import APIRouter, Depends, HTTPException, UploadFile, File
 from sqlalchemy.orm import Session
 
@@ -16,13 +14,12 @@ from database.repos import CustomerRepository, VehicleRepository
 
 logger = logging.getLogger(__name__)
 
-_UPLOAD_DIR = os.getenv("UPLOAD_DIR", "./uploads")
 _MAX_IMAGE_BYTES = 10 * 1024 * 1024  # 10 MB
 _ALLOWED_IMAGE_EXT = {".jpg", ".jpeg", ".png", ".heic", ".heif", ".gif", ".webp"}
 
 
-async def _save_customer_image(upload: UploadFile) -> str:
-    """Validate, save, and return the file path for a customer image upload."""
+async def _read_customer_image(upload: UploadFile) -> bytes:
+    """Validate and return raw bytes for a customer image upload."""
     ext = Path(upload.filename or "").suffix.lower()
     if ext not in _ALLOWED_IMAGE_EXT:
         raise HTTPException(status_code=400, detail=f"Unsupported image type '{ext}'")
@@ -31,16 +28,7 @@ async def _save_customer_image(upload: UploadFile) -> str:
     if len(content) > _MAX_IMAGE_BYTES:
         raise HTTPException(status_code=413, detail="Image exceeds 10 MB limit")
 
-    images_dir = Path(_UPLOAD_DIR) / "images"
-    images_dir.mkdir(parents=True, exist_ok=True)
-
-    # Use only the validated extension — never the original filename
-    file_path = images_dir / f"customer_{uuid.uuid4()}{ext}"
-
-    async with aiofiles.open(file_path, "wb") as f:
-        await f.write(content)
-
-    return str(file_path)
+    return content
 
 router = APIRouter()
 
@@ -57,8 +45,8 @@ async def extract_customer_info(
         if not customer_image:
             raise HTTPException(status_code=400, detail="Customer image is required")
 
-        file_path = await _save_customer_image(customer_image)
-        customer_info = await extract_customer_info_from_image(file_path)
+        image_bytes = await _read_customer_image(customer_image)
+        customer_info = await extract_customer_info_from_image(image_bytes)
 
         if not customer_info:
             raise HTTPException(
@@ -117,8 +105,8 @@ async def create_customer_image(
         if not customer_image:
             raise HTTPException(status_code=400, detail="Customer image is required")
 
-        file_path = await _save_customer_image(customer_image)
-        customer_info = await extract_customer_info_from_image(file_path)
+        image_bytes = await _read_customer_image(customer_image)
+        customer_info = await extract_customer_info_from_image(image_bytes)
 
         if not customer_info:
             raise HTTPException(

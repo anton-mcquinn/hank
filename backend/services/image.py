@@ -14,15 +14,18 @@ OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
 VISION_API_KEY = os.getenv("OPENAI_API_KEY")
 
 
-async def extract_vin_from_image(file_path):
+def _encode(image_bytes: bytes) -> str:
+    return base64.b64encode(image_bytes).decode("utf-8")
+
+
+async def extract_vin_from_image(image_bytes: bytes):
     """Extract VIN from door placard image using Vision API"""
     retry_count = 0
     last_error = None
     while retry_count < 3:
         try:
             async with httpx.AsyncClient() as client:
-                with open(file_path, "rb") as f:
-                    image_content = base64.b64encode(f.read()).decode("utf-8")
+                image_content = _encode(image_bytes)
 
                 # Using OpenAI Vision for image analysis
                 headers = {
@@ -92,12 +95,11 @@ async def extract_vin_from_image(file_path):
     return ""
 
 
-async def read_odometer_image(file_path):
+async def read_odometer_image(image_bytes: bytes):
     """Extract odometer reading from image using Vision API"""
     try:
         async with httpx.AsyncClient() as client:
-            with open(file_path, "rb") as f:
-                image_content = base64.b64encode(f.read()).decode("utf-8")
+            image_content = _encode(image_bytes)
 
             # Using OpenAI Vision for odometer reading
             headers = {
@@ -154,12 +156,11 @@ async def read_odometer_image(file_path):
         return ""
 
 
-async def read_plate_from_image(file_path):
+async def read_plate_from_image(image_bytes: bytes):
     """Extract License Plate Number from image using Vision API"""
     try:
         async with httpx.AsyncClient() as client:
-            with open(file_path, "rb") as f:
-                image_content = base64.b64encode(f.read()).decode("utf-8")
+            image_content = _encode(image_bytes)
 
             # Using OpenAI Vision for image analysis
             headers = {
@@ -208,12 +209,11 @@ async def read_plate_from_image(file_path):
         return ""
 
 
-async def extract_customer_info_from_image(file_path):
+async def extract_customer_info_from_image(image_bytes: bytes):
     """Extract customer information from an image using Vision API"""
     try:
         async with httpx.AsyncClient() as client:
-            with open(file_path, "rb") as f:
-                image_content = base64.b64encode(f.read()).decode("utf-8")
+            image_content = _encode(image_bytes)
 
             # Using OpenAI Vision for image analysis
             headers = {

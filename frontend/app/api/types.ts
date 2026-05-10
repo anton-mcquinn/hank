@@ -86,6 +86,8 @@ export interface WorkOrder {
   total_labor: number;
   total: number;
   status: string;
+  invoice_key?: string;
+  estimate_key?: string;
   created_at: string;
   updated_at: string;
   customer?: Customer;
@@ -114,6 +116,7 @@ export interface WorkOrderCreateFormData {
   audio_files?: File[];
   vin_image?: File;
   odometer_image?: File;
+  transcript?: string;
 }
 
 // Invoice Generation types
@@ -126,8 +129,7 @@ export interface EmailRequest {
 export interface InvoiceResponse {
   status: string;
   html_content: string;
-  html_path: string;
-  pdf_path?: string;
+  pdf_url?: string;
   email_status?: string;
   message?: string;
 }
